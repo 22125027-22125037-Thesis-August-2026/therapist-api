@@ -13,6 +13,6 @@ public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID
 
     @Transactional
     @Modifying
-    @Query(value = "UPDATE schedule_slots SET is_booked = true WHERE id = :slotId AND is_booked = false", nativeQuery = true)
-    int lockAndBookSlot(@Param("slotId") UUID slotId);
+    @Query(value = "UPDATE schedule_slots SET is_booked = true WHERE id = :id AND is_booked = false", nativeQuery = true)
+    int lockAndBookSlot(@Param("id") UUID id);
 }
