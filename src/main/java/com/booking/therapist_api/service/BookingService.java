@@ -23,12 +23,12 @@ public class BookingService {
 
     private final ScheduleSlotRepository slotRepository;
     private final AppointmentRepository appointmentRepository;
-    private final RabbitMQPublisher eventPublisher;
+    private final BookingEventPublisher eventPublisher;
 
     public BookingService(
             ScheduleSlotRepository slotRepository,
             AppointmentRepository appointmentRepository,
-            RabbitMQPublisher eventPublisher
+            BookingEventPublisher eventPublisher
     ) {
         this.slotRepository = slotRepository;
         this.appointmentRepository = appointmentRepository;
@@ -53,7 +53,7 @@ public class BookingService {
         appointment.setStartDatetime(slot.getStartDatetime());
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        eventPublisher.publishAppointmentBookedEvent(savedAppointment.getId());
+        eventPublisher.publishAppointmentBooked(savedAppointment.getId());
 
         return new BookingResponseDto(
                 savedAppointment.getId(),

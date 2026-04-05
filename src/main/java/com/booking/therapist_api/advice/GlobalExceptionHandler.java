@@ -3,6 +3,8 @@ package com.booking.therapist_api.advice;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.exception.MeetingNotOpenException;
 import com.booking.therapist_api.exception.SlotAlreadyBookedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +17,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(SlotAlreadyBookedException.class)
     public ProblemDetail handleSlotAlreadyBookedException(SlotAlreadyBookedException ex) {
@@ -51,6 +55,18 @@ public class GlobalExceptionHandler {
                 .add(error.getDefaultMessage() != null ? error.getDefaultMessage() : "Invalid value"));
 
         problemDetail.setProperty("errors", fieldErrors);
+        return problemDetail;
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpectedException(Exception ex) {
+        logger.error("Unhandled exception occurred", ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred. Please try again later."
+        );
+        problemDetail.setTitle("Internal Server Error");
         return problemDetail;
     }
 }

@@ -7,7 +7,6 @@ import com.booking.therapist_api.service.BookingService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,9 +29,9 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<BookingResponseDto> createBooking(
             @Valid @RequestBody BookingRequestDto request,
-            @AuthenticationPrincipal UserDetails currentUser
+            @AuthenticationPrincipal String userId
     ) {
-        UUID patientId = UUID.fromString(currentUser.getUsername());
+        UUID patientId = UUID.fromString(userId);
         BookingResponseDto response = bookingService.processBooking(patientId, request.slotId());
         return ResponseEntity.status(201).body(response);
     }

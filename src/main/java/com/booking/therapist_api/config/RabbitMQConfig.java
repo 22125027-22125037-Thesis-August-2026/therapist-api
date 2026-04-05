@@ -1,5 +1,8 @@
 package com.booking.therapist_api.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
@@ -18,12 +21,12 @@ public class RabbitMQConfig {
 
     @Bean
     public TopicExchange bookingExchange() {
-        return new TopicExchange(BOOKING_EXCHANGE);
+        return new TopicExchange(BOOKING_EXCHANGE, true, false);
     }
 
     @Bean
     public Queue notificationBookingQueue() {
-        return new Queue(NOTIFICATION_BOOKING_QUEUE);
+        return new Queue(NOTIFICATION_BOOKING_QUEUE, true, false, false);
     }
 
     @Bean
@@ -35,7 +38,15 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public MessageConverter messageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public ObjectMapper rabbitObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return objectMapper;
+    }
+
+    @Bean
+    public MessageConverter messageConverter(ObjectMapper rabbitObjectMapper) {
+        return new Jackson2JsonMessageConverter(rabbitObjectMapper);
     }
 }
