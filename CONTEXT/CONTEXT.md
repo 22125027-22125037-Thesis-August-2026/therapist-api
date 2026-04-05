@@ -24,10 +24,6 @@ Because you just completed the Postman testing phase, the state of your data has
 
 ***
 
-Here is **Part 2** of your detailed system context. This section dives into the application layer, detailing the security gateway, your error-handling matrix, and the exact mechanics of your service layer.
-
-***
-
 ### Part 2: Security, Error Handling & The Application Layer
 
 #### 1. Security & Identity Management (The Filter Chain)
@@ -57,10 +53,6 @@ This is the "Critical Path" of your application. It successfully orchestrates da
     * **Time Lock Check:** It actively compares the current UTC time against the appointment's `start_datetime`.
     * **State Machine Trigger:** Upon a successful check (within the 10-minute window), it mutates the `Appointment` entity's state from `UPCOMING` to `IN_PROGRESS` and saves it to the database.
     * **Token Delivery:** It currently returns the exact meeting link and a placeholder `"mock-jwt-token-for-now"` string, awaiting the actual integration of the Zoom/Jitsi SDK secrets.
-
-***
-
-Here is **Part 3** of your detailed system context. This final section maps out the exact deltas—the specific gaps between what is currently running on your machine and the finalized architecture in your ERD—and provides a prioritized roadmap for our next moves.
 
 ***
 
