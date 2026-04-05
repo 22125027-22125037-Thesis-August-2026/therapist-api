@@ -1,103 +1,275 @@
-### Part 1: Infrastructure & Data Persistence Layer
+# Therapist API - Master System Prompt
 
-#### 1. Infrastructure & Environment Setup
-You have successfully moved away from bare-metal local installations to a containerized microservices infrastructure.
-* **Application Runtime:** Spring Boot (v4.0.5) running Java 17, built with Gradle. The application is running locally on port `8080`.
-* **Container Orchestration:** Docker Compose is actively managing two isolated services on a custom bridge network.
-* **Database Container:** Running `postgres:15-alpine`. To avoid conflicts with your local pgAdmin installation, the container's internal port `5432` is mapped to your host machine's port `5434`. The active database being used is explicitly named `therapist_api`.
-* **Message Broker Container:** Running `rabbitmq:3-management-alpine`. The AMQP connection is mapped to port `5673`, and the Management UI is mapped to `15673`.
+## 1. Purpose and Scope
+This document is the canonical architecture and business-rules reference for AI-assisted development in this repository.
 
-#### 2. The Database Reality vs. The ERD Design
-This is the most critical distinction in your current state. While your ERD outlines a complete Booking Domain, your *actual compiled codebase* is currently a subset of that design.
-* **Hibernate Configuration:** Your `application.yml` is set to `spring.jpa.hibernate.ddl-auto: update`. This means Spring Data JPA is the sole dictator of your database schema.
-* **Active Tables:** Hibernate has successfully generated exactly two tables in the `therapist_api` public schema:
-    1.  `schedule_slots`
-    2.  `appointments`
-* **The Missing Entity Nuance:** You have *not* yet created the `Therapist`, `WeeklyTemplate`, or `ClinicalNotes` Java `@Entity` classes. Consequently, those tables do not exist in PostgreSQL. 
-* **Foreign Key Ramifications:** Because the `Therapist` entity does not exist, the `therapist_id` column inside your `schedule_slots` table is currently just storing a raw `UUID`. There is no hard database-level Foreign Key constraint linking it to a `therapists` table. This allowed us to successfully bypass the `relation "therapists" does not exist` SQL error during the data seeding phase.
+Primary goals:
+- Keep implementations aligned to the target microservice architecture.
+- Prevent regressions in booking concurrency, scheduling logic, and appointment state transitions.
+- Ensure consistent API and domain modeling decisions across future phases.
 
-#### 3. Current Data State (The "Mock" Reality)
-Because you just completed the Postman testing phase, the state of your data has mutated from its initial seeded state.
-* **The Schedule Slot:** You have one record in `schedule_slots` (ID: `22222222-2222-2222-2222-222222222222`). Its `start_datetime` is set to approximately 24 hours from the moment you ran the SQL script, and its `end_datetime` is 25 hours out. 
-* **The Mutation:** Because your "Happy Path" Postman test was successful, the `is_booked` boolean on this slot is currently set to `TRUE`.
-* **The Appointment:** You have one newly generated record in the `appointments` table. It contains an auto-generated UUID, is linked to the slot `22222222...`, is tied to the dummy Patient UUID (`55555...`) from your JWT, and sits exactly in the `UPCOMING` status.
+## 2. Runtime and Infrastructure Baseline
 
-***
+### 2.1 Service Runtime
+- Language and framework: Java 17 + Spring Boot.
+- Build tool: Gradle.
+- Local app port: `8080`.
+- Database: PostgreSQL 15 (containerized).
+- Broker: RabbitMQ 3 (containerized).
 
-### Part 2: Security, Error Handling & The Application Layer
+### 2.2 Container Ports (Local Dev)
+- PostgreSQL container `5432` -> host `5434`.
+- RabbitMQ AMQP `5672` -> host `5673`.
+- RabbitMQ management UI `15672` -> host `15673`.
 
-#### 1. Security & Identity Management (The Filter Chain)
-Your API is currently operating under a strict, stateless security model designed for a microservices architecture.
-* **Session Management:** `STATELESS`. The server maintains zero HTTP sessions. Every single request to `/api/v1/**` must be authenticated independently via a Bearer token.
-* **The JWT Filter (`JwtAuthenticationFilter`):** Intercepts incoming requests, validates the signature using your configured `jwt.secret`, and extracts two critical pieces of data:
-    1.  `Subject` (The Patient's UUID)
-    2.  `Claim: role` (e.g., "ROLE_USER")
-* **Context Injection:** The filter wraps this data in a `UsernamePasswordAuthenticationToken` and injects it into the `SecurityContextHolder`. This allows your controllers to seamlessly access the user's ID via the `@AuthenticationPrincipal String userId` annotation without manually parsing the token.
-* **The Backdoor (`TestAuthController`):** Because the actual Auth Service microservice does not exist yet, you have a temporary endpoint at `GET /api/test-auth/token`. Spring Security explicitly permits all traffic to this endpoint so you can manually generate signed JWTs for Postman testing.
+## 3. Domain Boundary Separation (Strict)
+The platform is split into independent bounded contexts. Do not collapse these domains into one shared model.
 
-#### 2. The Global Exception Matrix (`GlobalExceptionHandler`)
-You have established a robust, enterprise-grade error-handling layer using Spring's `ProblemDetail` API (RFC 7807 standard). Your controllers do not use `try/catch` blocks; they simply throw exceptions, and this `@RestControllerAdvice` class intercepts them and formats standard JSON responses.
-* **`SlotAlreadyBookedException` $\rightarrow$ HTTP 409 (Conflict):** Triggered when the atomic database lock fails (meaning another user beat them to the booking).
-* **`MeetingNotOpenException` $\rightarrow$ HTTP 403 (Forbidden):** Triggered when a user tries to access the video handshake endpoint more than 10 minutes before the scheduled `start_datetime`.
-* **`MethodArgumentNotValidException` $\rightarrow$ HTTP 400 (Bad Request):** Automatically triggered if a client sends a malformed DTO (e.g., missing the `slotId`). It dynamically extracts the specific field errors and appends them to the JSON response so the frontend knows exactly what failed.
-* **`ResourceNotFoundException` $\rightarrow$ HTTP 404 (Not Found):** A generic handler for missing database records (e.g., querying an appointment ID that doesn't exist).
+- Auth Domain:
+    Owns identity lifecycle, login, refresh token rotation, and role/permission issuance.
+- AI and Context Domain:
+    Owns AI prompt context, recommendations, semantic history, and contextual reasoning assets.
+- Booking Domain:
+    Owns therapist profiles for booking use, schedule generation, availability querying, appointment lifecycle, and clinical sign-off linkage.
+- Tracking Domain:
+    Owns progress tracking, treatment milestones, session adherence, and analytics timelines.
+- Social Domain:
+    Owns patient community features, interactions, posts, moderation hooks, and social engagement records.
 
-#### 3. The Core Engine (`BookingController` & `BookingService`)
-This is the "Critical Path" of your application. It successfully orchestrates database transactions, business logic, and asynchronous messaging.
-* **The Booking Transaction (`POST /api/v1/bookings`):**
-    * **Validation:** It verifies the requested slot exists and enforces the 12-hour lead time rule.
-    * **Concurrency Control:** It completely bypasses standard JPA updates to prevent race conditions. It executes a native/JPQL atomic update via `ScheduleSlotRepository.lockAndBookSlot` (`UPDATE schedule_slots SET is_booked = true WHERE id = :id AND is_booked = false`). If this returns `0` updated rows, it aborts the transaction.
-    * **Async Offloading:** After successfully saving the `Appointment` entity to the database, it calls `BookingEventPublisher` to push an `appointment.booked` JSON message to RabbitMQ.
-    * **Response:** It immediately returns an HTTP 201 Created to the user without waiting for downstream services (like email notifications) to process.
-* **The Video Handshake (`GET /api/v1/bookings/{id}/join`):**
-    * **Time Lock Check:** It actively compares the current UTC time against the appointment's `start_datetime`.
-    * **State Machine Trigger:** Upon a successful check (within the 10-minute window), it mutates the `Appointment` entity's state from `UPCOMING` to `IN_PROGRESS` and saves it to the database.
-    * **Token Delivery:** It currently returns the exact meeting link and a placeholder `"mock-jwt-token-for-now"` string, awaiting the actual integration of the Zoom/Jitsi SDK secrets.
+Rules:
+- Cross-domain communication should use APIs or events, not direct table coupling.
+- Booking Domain must remain independently deployable and evolvable.
 
-***
+## 4. Booking Database and ERD Contract
 
-### Part 3: The Deltas & Architectural Roadmap
+### 4.1 Booking Tables (Target Schema)
+The Booking Domain schema consists of these core tables:
 
-#### 1. The Domain Model Gaps (Missing Entities)
-While the core transactional engine (`appointments` and `schedule_slots`) is functional, the surrounding domain context has not yet been translated into Java code.
-* **`Therapist` Entity:** Missing. Currently, therapists are just phantom UUIDs in the `schedule_slots` table. We need this entity to store professional details (specialization, years of experience, rating) and to establish a formal JPA `@ManyToOne` relationship with the slots.
-* **`WeeklyTemplate` Entity:** Missing. This is required to define a therapist's recurring availability (e.g., "Mondays from 9 AM to 5 PM").
-* **`ClinicalNote` Entity:** Missing. Required to store the post-session diagnosis and recommendations, and to trigger the final state change of an appointment.
+- `therapists`
+- `schedule_slots`
+- `appointments`
+- `weekly_templates`
+- `clinical_notes`
+- `reviews`
 
-#### 2. The Business Logic Gaps (Missing Features)
-The "Happy Path" booking works, but several crucial APIs defined in your initial specifications remain unbuilt.
-* **Automated Slot Generation:** We defined a business rule where a Cron Job (`@Scheduled`) runs weekly to generate 30 days of `schedule_slots` based on the `WeeklyTemplates`. This background worker does not exist yet; we manually inserted our test slot.
-* **The Clinical Notes Trigger:** The endpoint `POST /api/v1/appointments/{id}/notes` does not exist. Currently, an appointment can reach the `IN_PROGRESS` state via the video handshake, but there is no mechanism to officially move it to `COMPLETED`.
-* **Availability Filtering:** The endpoint `GET /api/v1/therapists/{id}/slots` is missing. The React Native mobile app currently has no way to ask the backend, "What times are actually available to book?"
+### 4.2 Table Responsibilities
+- `therapists`:
+    Stores therapist identity for booking context, professional metadata, and availability ownership.
+- `weekly_templates`:
+    Stores recurring weekly availability definitions per therapist (day-of-week, time windows, activation flags, timezone intent).
+- `schedule_slots`:
+    Stores generated, bookable slot instances with exact timestamps and booking lock state.
+- `appointments`:
+    Stores patient-to-slot booking records, lifecycle status, and meeting/session metadata.
+- `clinical_notes`:
+    Stores therapist-submitted session outcomes, diagnosis notes, recommendations, and completion evidence.
+- `reviews`:
+    Stores post-appointment patient feedback linked to appointments, including rating and comment.
 
-#### 3. The Integration Gaps (Mocked Boundaries)
-To achieve isolation for testing, we placed "stubs" at the boundaries of your microservice. These must eventually be replaced with real integrations.
-* **The Video SDK Stub:** `GET /api/v1/bookings/{id}/join` currently returns `"mock-jwt-token-for-now"`. Before front-end integration, this must be swapped with the actual cryptographic generation logic required by your chosen Video SDK (Jitsi/Zoom).
-* **The Identity Stub:** `TestAuthController` is a backdoor. In production, this service will be deleted. The API Gateway will handle actual user login, generate the JWT, and forward it to this Booking Service.
-* **The RabbitMQ Consumer:** Your Booking Service successfully *publishes* the `appointment.booked` event, but there is no Notification Service running to *consume* it. The message currently sits safely in the queue.
+### 4.3 Core Relationships (Conceptual)
+- One therapist -> many weekly templates.
+- One therapist -> many schedule slots.
+- One schedule slot -> zero or one appointment.
+- One appointment -> zero or one clinical note.
+- One appointment -> zero or one review.
 
----
+Strict cross-microservice modeling rule:
+- Cross-database references (like `account_id` in `therapists` and `profile_id` in `appointments` pointing to the Auth DB) MUST be modeled as simple UUID fields in Java.
+- Do NOT use JPA `@ManyToOne` or `@JoinColumn` for cross-microservice relationships.
 
-### The Prioritized Development Roadmap
+### 4.4 Concurrency-Critical Booking Lock
+Double-booking prevention is mandatory.
 
-To systematically close these gaps without breaking your working critical path, here is the recommended order of operations:
+Booking must rely on a native atomic SQL update against `schedule_slots`:
 
-**Phase 10: Complete the Domain Model**
-* Create the `Therapist`, `WeeklyTemplate`, and `ClinicalNote` JPA entities.
-* Define their `@OneToMany` and `@ManyToOne` relationships to `ScheduleSlot` and `Appointment`.
-* Let Spring Boot auto-update the PostgreSQL schema to match the full ERD.
+```sql
+UPDATE schedule_slots
+SET is_booked = true
+WHERE slot_id = :slotId
+    AND is_booked = false;
+```
 
-**Phase 11: The Clinical Sign-Off**
-* Build the `POST /notes` endpoint.
-* Implement the service logic to save the note and execute the final State Machine transition (`IN_PROGRESS` $\rightarrow$ `COMPLETED`).
-* Lock it down using `@PreAuthorize("hasRole('ROLE_THERAPIST')")`.
+Interpretation rule:
+- If affected row count = `1`, lock succeeded and booking flow may continue.
+- If affected row count = `0`, slot was already locked/booked and flow must fail with conflict semantics.
 
-**Phase 12: Automated Scheduling**
-* Build the `@Scheduled` cron job service.
-* Write the logic that reads a `WeeklyTemplate` and generates individual `ScheduleSlot` records for the next 30 days, taking care to respect UTC boundaries.
+## 5. High-Level Architecture
 
-**Phase 13: Querying Availability**
-* Build the `GET /slots` endpoint.
-* Implement pagination and filtering so the frontend only receives future, unbooked slots.
+### 5.1 Event-Driven Integration (RabbitMQ)
+Booking operations publish domain events for downstream services.
 
-***
+- Required pattern:
+    Command succeeds locally -> persist state -> publish event.
+- Primary event example:
+    `appointment.booked`
+- Event purpose:
+    Notify decoupled consumers (notifications, analytics, tracking, etc.) without blocking booking response latency.
+
+Guidelines:
+- Producer must not depend on consumer availability.
+- Failure handling should be explicit (retry/outbox policy in future hardening).
+
+### 5.2 Hybrid Security Model (Stateful and Stateless)
+Security architecture combines stateless API access with stateful session continuity.
+
+- Stateless layer:
+    Short-lived JWT access tokens authenticate API calls.
+- Stateful layer:
+    Long-lived refresh tokens stored in Redis enable silent token rotation and session management.
+
+Expected behavior:
+- Access tokens expire quickly and are never treated as durable sessions.
+- Refresh token rotation should invalidate old refresh artifacts to reduce replay risk.
+- Redis acts as the revocation and session continuity control plane.
+
+### 5.3 WebRTC P2P Video Flow (Backend as Gatekeeper)
+The backend does not proxy media streams.
+
+- Media path:
+    Client-to-client P2P via WebRTC or provider-managed transport.
+- Backend role:
+    Validate appointment/time policy, then mint/return temporary auth token for the Video Cloud provider.
+- Security intent:
+    Only authorized, time-valid participants receive temporary join credentials.
+
+## 6. Strict Business Rules (Non-Negotiable)
+
+### 6.1 Automated Slot Generation
+- A scheduled job runs every Sunday at `02:00`.
+- Spring mechanism: `@Scheduled` cron-based task.
+- Function:
+    Read active `weekly_templates` and generate `30` days of future `schedule_slots`.
+- Idempotency expectation:
+    Generation must avoid duplicate slots for the same therapist/time window.
+- Secondary cleanup rule:
+    A monthly cron job deletes unbooked `schedule_slots` older than `30` days to keep the database lightweight.
+
+### 6.2 Time and Policy Rules
+- Booking lead-time rule:
+    A slot must be booked at least `12` hours before `start_datetime`.
+- Cancellation rule:
+    Appointment cancellation is only allowed at least `24` hours before `start_datetime`.
+- Time storage rule:
+    All timestamps persisted in DB are UTC.
+- Validation zone rule:
+    Business cutoffs are validated against `Asia/Ho_Chi_Minh` (`UTC+7`) semantics.
+
+### 6.3 Appointment State Machine
+Allowed transition flow:
+
+`UPCOMING` -> `IN_PROGRESS` -> `COMPLETED`
+
+Transition triggers:
+- `UPCOMING` -> `IN_PROGRESS`:
+    Triggered by successful video handshake/join authorization.
+- `IN_PROGRESS` -> `COMPLETED`:
+    Triggered manually when therapist submits `clinical_notes`.
+
+No implicit shortcuts:
+- Do not transition directly from `UPCOMING` to `COMPLETED`.
+
+### 6.4 Video Handshake Time Lock
+- Join endpoint returns a temporary video token only when current time is within `10` minutes of `start_datetime`.
+- Requests outside that window must be rejected with a policy error.
+
+## 7. Booking Domain API Specifications
+All endpoints below are Booking Domain contracts to preserve during implementation and refactoring.
+
+### 7.1 Therapist Profile Management
+- `GET /therapists/{id}`
+    Returns therapist profile details for booking context.
+
+Expected concerns:
+- Existence validation (`404` for missing therapist).
+- Read-only exposure of profile fields needed by client booking flows.
+
+### 7.2 Schedule Availability Management
+- `GET /therapists/{id}/slots`
+    Returns therapist slot availability (future and filterable).
+- `POST /therapists/{id}/templates`
+    Creates or updates recurring availability templates used by scheduled generation.
+
+Expected concerns:
+- Timezone-safe request validation.
+- Pagination/filtering for slot queries.
+- Template conflict checks and deterministic generation behavior.
+
+### 7.3 Appointment Management
+- `GET /appointments`
+    Lists appointments for authorized principal scope (patient or therapist according to role).
+- `PATCH /status`
+    Performs controlled appointment status updates according to state-machine rules.
+
+Expected concerns:
+- Role-aware data filtering.
+- Strict enforcement of allowed state transitions.
+- Auditability of status changes.
+
+### 7.4 Clinical Notes Management
+- `POST /notes`
+    Submits therapist clinical notes for an appointment and triggers completion transition.
+
+Expected concerns:
+- Therapist-only authorization.
+- Appointment must be in `IN_PROGRESS` before note submission.
+- Successful note creation must transition appointment to `COMPLETED`.
+
+## 8. Error and Contract Enforcement Principles
+- Use explicit domain exceptions for policy violations (booking window, join window, transition violations).
+- Return stable HTTP semantics (`400`, `403`, `404`, `409`) mapped to clear machine-readable payloads.
+- Validate DTOs at controller boundary; enforce state and policy rules at service boundary.
+
+## 9. Phase 10 Implementation Focus
+Current phase objective: complete Booking Domain model parity with ERD.
+
+Deliverables:
+- Implement JPA entities for `Therapist`, `WeeklyTemplate`, and `ClinicalNote`.
+- Wire relationships with existing `ScheduleSlot` and `Appointment` entities.
+- Preserve atomic booking lock behavior in repository/service paths.
+- Keep API behavior and state-machine rules aligned with this document.
+
+Required `Therapist` fields:
+- `therapist_id`
+- `account_id`
+- `full_name`
+- `specialization`
+- `country`
+- `years_experience`
+- `about_me`
+- `rating_avg`
+- `license_url`
+
+Required `WeeklyTemplate` fields:
+- `template_id`
+- `therapist_id`
+- `day_of_week`
+- `start_time`
+- `end_time`
+- `is_active`
+
+Required `ClinicalNote` fields:
+- `note_id` (PK)
+- `appt_id` (FK)
+- `diagnosis`
+- `recommendations`
+- `created_at`
+
+Completion definition for Phase 10:
+- Schema reflects all six Booking tables.
+- Entity relationships support upcoming APIs without breaking current booking critical path.
+
+## 10. Post-Phase 10 Roadmap
+
+### 10.1 Phase 11: The Clinical Sign-Off
+- Build the `POST /notes` endpoint.
+- Implement service logic to save the note and execute the final state transition: `IN_PROGRESS` -> `COMPLETED`.
+- Lock it down using `@PreAuthorize("hasRole('ROLE_THERAPIST')")`.
+
+### 10.2 Phase 12: Automated Scheduling
+- Build the `@Scheduled` cron job service.
+- Implement logic that reads `WeeklyTemplate` and generates `ScheduleSlot` records for the next `30` days, respecting UTC boundaries.
+
+### 10.3 Phase 13: Querying Availability
+- Build the `GET /slots` endpoint.
+- Implement pagination and filtering so frontend clients receive only future, unbooked slots.
+
