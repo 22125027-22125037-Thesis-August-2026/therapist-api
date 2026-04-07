@@ -2,8 +2,12 @@ package com.booking.therapist_api.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -17,20 +21,24 @@ public class ScheduleSlot {
     @Id
     @GeneratedValue
     @UuidGenerator
-    @Column(nullable = false, updatable = false)
+    @Column(name = "slot_id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(nullable = false)
-    private UUID therapistId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "therapist_id", nullable = false)
+    private Therapist therapist;
 
-    @Column(nullable = false)
+    @Column(name = "start_datetime", nullable = false)
     private Instant startDatetime;
 
-    @Column(nullable = false)
+    @Column(name = "end_datetime", nullable = false)
     private Instant endDatetime;
 
-    @Column(nullable = false)
+    @Column(name = "is_booked", nullable = false)
     private boolean isBooked = false;
+
+    @OneToOne(mappedBy = "slot", fetch = FetchType.LAZY)
+    private Appointment appointment;
 
     public ScheduleSlot() {
     }
@@ -43,12 +51,12 @@ public class ScheduleSlot {
         this.id = id;
     }
 
-    public UUID getTherapistId() {
-        return therapistId;
+    public Therapist getTherapist() {
+        return therapist;
     }
 
-    public void setTherapistId(UUID therapistId) {
-        this.therapistId = therapistId;
+    public void setTherapist(Therapist therapist) {
+        this.therapist = therapist;
     }
 
     public Instant getStartDatetime() {
@@ -73,5 +81,13 @@ public class ScheduleSlot {
 
     public void setBooked(boolean booked) {
         isBooked = booked;
+    }
+
+    public Appointment getAppointment() {
+        return appointment;
+    }
+
+    public void setAppointment(Appointment appointment) {
+        this.appointment = appointment;
     }
 }

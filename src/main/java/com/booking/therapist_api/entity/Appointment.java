@@ -6,8 +6,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UuidGenerator;
@@ -22,17 +26,19 @@ public class Appointment {
     @Id
     @GeneratedValue
     @UuidGenerator
-    @Column(nullable = false, updatable = false)
+    @Column(name = "appt_id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "profile_id", nullable = false)
     private UUID profileId;
 
-    @Column(nullable = false)
-    private UUID therapistId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "therapist_id", nullable = false)
+    private Therapist therapist;
 
-    @Column(nullable = false, unique = true)
-    private UUID slotId;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "slot_id", nullable = false, unique = true)
+    private ScheduleSlot slot;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -45,12 +51,15 @@ public class Appointment {
     @Column
     private String meetingLink;
 
-    @Column(nullable = false)
+    @Column(name = "start_datetime", nullable = false)
     private Instant startDatetime;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @OneToOne(mappedBy = "appointment", fetch = FetchType.LAZY)
+    private ClinicalNote clinicalNote;
 
     public Appointment() {
     }
@@ -71,20 +80,20 @@ public class Appointment {
         this.profileId = profileId;
     }
 
-    public UUID getTherapistId() {
-        return therapistId;
+    public Therapist getTherapist() {
+        return therapist;
     }
 
-    public void setTherapistId(UUID therapistId) {
-        this.therapistId = therapistId;
+    public void setTherapist(Therapist therapist) {
+        this.therapist = therapist;
     }
 
-    public UUID getSlotId() {
-        return slotId;
+    public ScheduleSlot getSlot() {
+        return slot;
     }
 
-    public void setSlotId(UUID slotId) {
-        this.slotId = slotId;
+    public void setSlot(ScheduleSlot slot) {
+        this.slot = slot;
     }
 
     public AppointmentMode getMode() {
@@ -125,5 +134,13 @@ public class Appointment {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public ClinicalNote getClinicalNote() {
+        return clinicalNote;
+    }
+
+    public void setClinicalNote(ClinicalNote clinicalNote) {
+        this.clinicalNote = clinicalNote;
     }
 }

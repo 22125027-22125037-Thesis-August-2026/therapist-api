@@ -47,8 +47,8 @@ public class BookingService {
 
         Appointment appointment = new Appointment();
         appointment.setProfileId(patientId);
-        appointment.setTherapistId(slot.getTherapistId());
-        appointment.setSlotId(slotId);
+        appointment.setTherapist(slot.getTherapist());
+        appointment.setSlot(slot);
         appointment.setMode(AppointmentMode.VIDEO);
         appointment.setStartDatetime(slot.getStartDatetime());
 
