@@ -7,9 +7,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID> {
+
+    List<ScheduleSlot> findByTherapist_TherapistIdOrderByStartDatetimeAsc(UUID therapistId);
+
+    long countByTherapist_TherapistId(UUID therapistId);
+
+    boolean existsByTherapist_TherapistIdAndStartDatetimeAndEndDatetime(
+            UUID therapistId,
+            Instant startDatetime,
+            Instant endDatetime
+    );
+
+    @Transactional
+    @Modifying
+    int deleteByIsBookedFalseAndEndDatetimeBefore(Instant threshold);
 
     @Transactional
     @Modifying
