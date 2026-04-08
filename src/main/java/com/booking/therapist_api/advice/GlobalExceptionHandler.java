@@ -4,6 +4,8 @@ import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.exception.MeetingNotOpenException;
 import com.booking.therapist_api.exception.ClinicalNoteAlreadyExistsException;
 import com.booking.therapist_api.exception.InvalidAppointmentStateException;
+import com.booking.therapist_api.exception.ReviewAlreadyExistsException;
+import com.booking.therapist_api.exception.ReviewNotAllowedException;
 import com.booking.therapist_api.exception.SlotAlreadyBookedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +56,20 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleClinicalNoteAlreadyExistsException(ClinicalNoteAlreadyExistsException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problemDetail.setTitle("Clinical Note Conflict");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(ReviewAlreadyExistsException.class)
+    public ProblemDetail handleReviewAlreadyExistsException(ReviewAlreadyExistsException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Review Conflict");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(ReviewNotAllowedException.class)
+    public ProblemDetail handleReviewNotAllowedException(ReviewNotAllowedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problemDetail.setTitle("Review Forbidden");
         return problemDetail;
     }
 

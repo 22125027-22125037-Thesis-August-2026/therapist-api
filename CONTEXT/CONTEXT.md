@@ -273,3 +273,7 @@ Completion definition for Phase 10:
 - Build the `GET /slots` endpoint.
 - Implement pagination and filtering so frontend clients receive only future, unbooked slots.
 
+### 10.4 Phase 16: Reviews & Ratings (Completed)
+- Added `POST /reviews` for patients to rate their completed appointments.
+- Enforced rules: patient must own the appointment, appointment status must be `COMPLETED`, and only one review per appointment.
+- Updated `therapists.rating_avg` after each review submission using aggregate review scores.

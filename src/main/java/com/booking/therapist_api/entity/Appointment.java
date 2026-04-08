@@ -61,6 +61,9 @@ public class Appointment {
     @OneToOne(mappedBy = "appointment", fetch = FetchType.LAZY)
     private ClinicalNote clinicalNote;
 
+    @OneToOne(mappedBy = "appointment", fetch = FetchType.LAZY)
+    private Review review;
+
     public Appointment() {
     }
 
@@ -142,5 +145,13 @@ public class Appointment {
 
     public void setClinicalNote(ClinicalNote clinicalNote) {
         this.clinicalNote = clinicalNote;
+    }
+
+    public Review getReview() {
+        return review;
+    }
+
+    public void setReview(Review review) {
+        this.review = review;
     }
 }
