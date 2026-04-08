@@ -1,6 +1,8 @@
 package com.booking.therapist_api.repository;
 
 import com.booking.therapist_api.entity.ScheduleSlot;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +16,12 @@ import java.util.UUID;
 public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID> {
 
     List<ScheduleSlot> findByTherapist_TherapistIdOrderByStartDatetimeAsc(UUID therapistId);
+
+    Page<ScheduleSlot> findByTherapist_TherapistIdAndIsBookedFalseAndStartDatetimeAfterOrderByStartDatetimeAsc(
+            UUID therapistId,
+            Instant now,
+            Pageable pageable
+    );
 
     long countByTherapist_TherapistId(UUID therapistId);
 
