@@ -15,13 +15,16 @@ import java.util.UUID;
 @RequestMapping("/api/test-auth")
 public class TestAuthController {
 
+    private static final String ROLE_USER = "ROLE_USER";
+    private static final String ROLE_THERAPIST = "ROLE_THERAPIST";
+
     @Value("${jwt.secret:your-fallback-secret-key-that-is-at-least-256-bits-long}")
     private String secret;
 
     @GetMapping("/token")
     public String generateToken(
             @RequestParam UUID userId,
-            @RequestParam(defaultValue = "ROLE_USER") String role
+            @RequestParam(defaultValue = ROLE_USER) String role
     ) {
         Date issuedAt = new Date();
         Date expiration = new Date(issuedAt.getTime() + 60 * 60 * 1000);
@@ -33,5 +36,10 @@ public class TestAuthController {
                 .expiration(expiration)
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes()))
                 .compact();
+    }
+
+    @GetMapping("/token/therapist")
+    public String generateTherapistToken(@RequestParam UUID userId) {
+        return generateToken(userId, ROLE_THERAPIST);
     }
 }
