@@ -66,15 +66,92 @@ Cross-microservice ERD rule:
 
 ## 4. Database Model (Implemented)
 
-### 4.1 Tables in Migrations
-- `therapists`
-- `weekly_templates`
-- `schedule_slots`
-- `appointments`
-- `clinical_notes`
-- `reviews`
-- `profiles_matching_preferences`
-- `therapist_assignments`
+### 4.1 Core Booking DB Schema Details
+
+#### `therapists` (detailed)
+Primary key:
+- `therapist_id` UUID PK
+
+Core columns:
+- `account_id` UUID NOT NULL (Auth-domain reference UUID; scalar field)
+- `full_name` VARCHAR(255) NOT NULL
+- `specialization` VARCHAR(255)
+- `country` VARCHAR(255)
+- `years_experience` INTEGER
+- `about_me` TEXT
+- `rating_avg` NUMERIC(3,2)
+- `license_url` VARCHAR(1024)
+
+Matching-related columns:
+- `gender` VARCHAR(50)
+- `is_lgbtq_allied` BOOLEAN
+- `communication_style` VARCHAR(100)
+- `treated_challenges` VARCHAR[]
+
+Referenced by foreign keys:
+- `weekly_templates.therapist_id -> therapists.therapist_id`
+- `schedule_slots.therapist_id -> therapists.therapist_id`
+- `appointments.therapist_id -> therapists.therapist_id`
+- `therapist_assignments.therapist_id -> therapists.therapist_id`
+
+#### `profiles_matching_preferences` (logical) / `profiles_preferences` (current physical table)
+Note:
+- Historical/architectural docs may refer to this table as `profiles_matching_preferences`.
+- Current implemented migrations/entities use table name `profiles_preferences`.
+
+Primary key:
+- `profile_id` UUID PK (cross-domain Profile/Auth reference UUID)
+
+Columns currently persisted in Booking DB:
+- `has_prior_counseling` VARCHAR(50)
+- `sexual_orientation` VARCHAR(100)
+- `is_lgbtq_priority` BOOLEAN
+- `reasons` VARCHAR[] (converted from JSONB in `V4__matching_schema_alignment.sql`)
+- `communication_style` VARCHAR(100)
+- `last_updated_at` TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+DDD boundary note:
+- Request fields like `age`, `gender`, `mood_levels`, and `self_harm_thought` are consumed by API/service flow but are not stored in this Booking DB table; they are propagated via RabbitMQ integration events for other domains.
+
+#### `therapist_assignments` (detailed)
+Primary key:
+- `assignment_id` UUID PK
+
+Columns:
+- `profile_id` UUID NOT NULL (cross-domain UUID scalar; FK intentionally removed in `V4`)
+- `therapist_id` UUID NOT NULL
+- `status` VARCHAR(20) NOT NULL
+- `assigned_at` TIMESTAMPTZ NOT NULL DEFAULT NOW()
+- `unassigned_at` TIMESTAMPTZ
+
+Constraints and indexes:
+- FK: `therapist_assignments.therapist_id -> therapists.therapist_id` (ON DELETE RESTRICT)
+- CHECK: status in `ACTIVE`, `INACTIVE`, `CHANGED_BY_REQUEST`
+- indexes on `profile_id` and `therapist_id`
+
+#### `appointments` (core columns summary)
+Primary key:
+- `appt_id` UUID PK
+
+Core columns:
+- `profile_id` UUID NOT NULL (cross-domain profile reference UUID)
+- `therapist_id` UUID NOT NULL (FK -> `therapists.therapist_id`)
+- `slot_id` UUID NOT NULL UNIQUE (FK -> `schedule_slots.slot_id`)
+- `mode` VARCHAR(50) NOT NULL
+- `status` VARCHAR(50) NOT NULL
+- `meeting_link` VARCHAR(1024)
+- `start_datetime` TIMESTAMPTZ NOT NULL
+- `created_at` TIMESTAMPTZ NOT NULL
+
+#### `schedule_slots` (core columns summary)
+Primary key:
+- `slot_id` UUID PK
+
+Core columns:
+- `therapist_id` UUID NOT NULL (FK -> `therapists.therapist_id`)
+- `start_datetime` TIMESTAMPTZ NOT NULL
+- `end_datetime` TIMESTAMPTZ NOT NULL
+- `is_booked` BOOLEAN NOT NULL DEFAULT FALSE
 
 ### 4.2 Key Relationships
 - One therapist -> many weekly templates.
@@ -141,7 +218,7 @@ Contract:
 - `savePreferences(profileId, request)` also publishes cross-domain integration events via RabbitMQ topic exchange `booking.exchange`:
   - `profile.demographics.updated` with demographics payload.
   - `tracking.mood.logged` with mood levels and timestamp.
-  - `ai.crisis.alerted` when `self_harm_thought` indicates positive risk ("Co"/"Yes" intent), with `source=INTAKE_FORM`.
+  - `ai.crisis.alerted` when `self_harm_thought` indicates positive risk ("Có"/"Yes" intent), with `source=INTAKE_FORM`.
 - `findMatches(profileId)` loads saved preference, applies therapist filtering by communication style and optional strict LGBTQ allied requirement, then returns therapists ordered by overlap of requested reasons and therapist treated challenges.
 - `assignTherapist(profileId, therapistId)` deactivates any existing `ACTIVE` assignment (`status -> INACTIVE`, `unassigned_at` set) and creates a new `ACTIVE` assignment for the selected therapist.
 
@@ -262,3 +339,119 @@ The following are required system constraints even where enforcement is still pe
 - Cancellation rule: Appointment cancellation is only allowed at least 24 hours before `start_datetime`.
 
 When implementing new features, prefer updating this section first so planned behavior and implemented behavior remain clearly separated.
+
+## 13. Manual Testing Plan: Therapist Matching Workflow
+
+### Step 1: Submit Preferences
+Goal:
+- Verify `POST /api/v1/matching/preferences` persists matching preference data for the authenticated profile.
+
+How to test:
+- Generate/use a valid JWT where `subject` is a profile UUID.
+- Call `POST /api/v1/matching/preferences` with `Authorization: Bearer <token>` and a valid JSON payload.
+
+Example payload:
+```json
+{
+  "has_prior_counseling": "No",
+  "gender": "Female",
+  "age": "24",
+  "sexual_orientation": "Heterosexual",
+  "is_lgbtq_priority": true,
+  "self_harm_thought": "Có",
+  "reasons": ["anxiety", "burnout", "stress"],
+  "mood_levels": {
+    "anxiety": 4,
+    "lossInterest": 3,
+    "fatigue": 5
+  },
+  "communication_style": "empathetic"
+}
+```
+
+Expected API result:
+- HTTP `204 No Content`.
+
+DB verification (PostgreSQL):
+- Query `profiles_preferences` (logical name `profiles_matching_preferences`) by JWT subject UUID.
+- Confirm row exists (or was updated) with:
+  - `profile_id` = JWT subject UUID
+  - `has_prior_counseling`, `sexual_orientation`, `is_lgbtq_priority`, `reasons`, `communication_style` updated
+  - `last_updated_at` refreshed
+
+Example check:
+```sql
+SELECT profile_id, has_prior_counseling, sexual_orientation, is_lgbtq_priority, reasons, communication_style, last_updated_at
+FROM profiles_preferences
+WHERE profile_id = '<jwt-subject-uuid>'::uuid;
+```
+
+### Step 2: Verify Event Publishing (RabbitMQ)
+Goal:
+- Verify cross-domain events are emitted after preference submission.
+
+How to test:
+- Open RabbitMQ Management UI: `http://localhost:15672`.
+- Login with your local credentials.
+- Navigate to `Exchanges` -> `booking.exchange` (type: topic).
+- Submit preferences again (Step 1) and observe exchange publish metrics / routed message activity.
+
+What to verify:
+- Event with routing key `profile.demographics.updated` is published.
+- Event with routing key `tracking.mood.logged` is published.
+- If `self_harm_thought` is `Có` or `Yes`, event with routing key `ai.crisis.alerted` is published.
+- Payload expectations:
+  - demographics includes `profileId`, parsed integer `age` (or null if unparsable), and `gender`
+  - mood includes `profileId`, `moodLevels`, `timestamp`
+  - crisis includes `profileId`, `source=INTAKE_FORM`, `triggerReason=SELF_HARM_THOUGHT_DECLARED`, `timestamp`
+
+### Step 3: Fetch Matches
+Goal:
+- Verify `GET /api/v1/matching/therapists` returns correctly filtered and ordered therapist recommendations.
+
+How to test:
+- Call `GET /api/v1/matching/therapists` with the same JWT.
+
+Expected verification in JSON response:
+- Returned therapists match requested `communication_style`.
+- If `is_lgbtq_priority=true`, all returned therapists have `is_lgbtq_allied=true` in DB.
+- Results are ordered by descending overlap count between:
+  - user `reasons` (from preferences)
+  - therapist `treated_challenges`
+- Response entries include `match_score` and/or `matching_reasons` consistent with overlap logic.
+
+Optional SQL cross-check:
+```sql
+SELECT therapist_id, full_name, communication_style, is_lgbtq_allied, treated_challenges
+FROM therapists;
+```
+
+### Step 4: Assign Therapist
+Goal:
+- Verify `POST /api/v1/matching/assign/{therapistId}` performs ACTIVE to INACTIVE transition and inserts new ACTIVE assignment.
+
+How to test:
+- Choose a therapist ID from Step 3 results.
+- Call `POST /api/v1/matching/assign/{therapistId}` with the same JWT.
+
+Expected API result:
+- HTTP `204 No Content`.
+
+DB verification in `therapist_assignments`:
+- Any previous row for this `profile_id` with `status='ACTIVE'` should become:
+  - `status='INACTIVE'`
+  - `unassigned_at` populated with a recent timestamp
+- A new row should exist with:
+  - same `profile_id`
+  - requested `therapist_id`
+  - `status='ACTIVE'`
+  - `assigned_at` populated
+  - `unassigned_at` is `NULL`
+
+Example checks:
+```sql
+SELECT assignment_id, profile_id, therapist_id, status, assigned_at, unassigned_at
+FROM therapist_assignments
+WHERE profile_id = '<jwt-subject-uuid>'::uuid
+ORDER BY assigned_at DESC;
+```
