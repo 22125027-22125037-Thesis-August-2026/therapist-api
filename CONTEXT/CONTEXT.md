@@ -153,6 +153,9 @@ Contract:
 - `GET /api/v1/therapists/{id}/slots` (paginated `Pageable`)
 - `POST /api/v1/notes`
 - `POST /api/v1/reviews`
+- `POST /api/v1/matching/preferences`
+- `GET /api/v1/matching/therapists`
+- `POST /api/v1/matching/assign/{therapistId}`
 
 ### 6.2 Test/Utility APIs
 - `GET /api/test-auth/token`
@@ -171,6 +174,7 @@ Contract:
   - `/api/v1/**` authenticated.
 - Method security enabled (`@EnableMethodSecurity`) for role checks in controllers.
 - `GrantedAuthorityDefaults("")` is used so `hasRole('ROLE_X')` matches literal `ROLE_X` authorities.
+- Matching endpoints derive `profileId` from JWT `subject` and do not accept `profileId` in request payloads.
 
 ## 7.1 Hybrid Security Model (Required Architecture)
 System-wide security intent is hybrid:
