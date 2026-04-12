@@ -1,6 +1,9 @@
 # Therapist API - Implementation Context
 
-Last updated: 2026-04-09
+Last updated: 2026-04-12
+
+## 0. Context Maintenance Rule
+Rule: Whenever major changes, new features, or architectural adjustments are made to the codebase, this CONTEXT.md file MUST be updated accordingly to reflect the current implemented reality.
 
 ## 1. Purpose
 This file describes the current implemented behavior of `therapist-api` (not a future target architecture). Use this as the source of truth when adding features, fixing bugs, or generating code.
@@ -67,6 +70,8 @@ Cross-microservice ERD rule:
 - `appointments`
 - `clinical_notes`
 - `reviews`
+- `profiles_matching_preferences`
+- `therapist_assignments`
 
 ### 4.2 Key Relationships
 - One therapist -> many weekly templates.
@@ -75,6 +80,9 @@ Cross-microservice ERD rule:
 - One schedule slot -> zero/one appointment (`appointments.slot_id` unique).
 - One appointment -> zero/one clinical note (`clinical_notes.appt_id` unique).
 - One appointment -> zero/one review (`reviews.appt_id` unique).
+- One profile -> one matching preference (`profiles_matching_preferences`).
+- One profile -> many therapist assignment records (`therapist_assignments`).
+- One therapist -> many therapist assignment records (`therapist_assignments`).
 
 ### 4.3 Concurrency-Safe Slot Lock
 Booking uses atomic native SQL in `ScheduleSlotRepository.lockAndBookSlot`:
