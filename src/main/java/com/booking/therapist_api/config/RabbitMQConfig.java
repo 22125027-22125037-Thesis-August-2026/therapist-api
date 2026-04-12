@@ -18,6 +18,9 @@ public class RabbitMQConfig {
     public static final String BOOKING_EXCHANGE = "booking.exchange";
     public static final String NOTIFICATION_BOOKING_QUEUE = "notification.booking.queue";
     public static final String APPOINTMENT_BOOKED_ROUTING_KEY = "appointment.booked";
+    public static final String PROFILE_DEMOGRAPHICS_UPDATED_ROUTING_KEY = "profile.demographics.updated";
+    public static final String TRACKING_MOOD_LOGGED_ROUTING_KEY = "tracking.mood.logged";
+    public static final String AI_CRISIS_ALERTED_ROUTING_KEY = "ai.crisis.alerted";
 
     @Bean
     public TopicExchange bookingExchange() {

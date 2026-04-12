@@ -138,6 +138,10 @@ Contract:
 
 ### 5.6 Matching Service Logic
 - `savePreferences(profileId, request)` upserts `profiles_preferences` by `profile_id`.
+- `savePreferences(profileId, request)` also publishes cross-domain integration events via RabbitMQ topic exchange `booking.exchange`:
+  - `profile.demographics.updated` with demographics payload.
+  - `tracking.mood.logged` with mood levels and timestamp.
+  - `ai.crisis.alerted` when `self_harm_thought` indicates positive risk ("Co"/"Yes" intent), with `source=INTAKE_FORM`.
 - `findMatches(profileId)` loads saved preference, applies therapist filtering by communication style and optional strict LGBTQ allied requirement, then returns therapists ordered by overlap of requested reasons and therapist treated challenges.
 - `assignTherapist(profileId, therapistId)` deactivates any existing `ACTIVE` assignment (`status -> INACTIVE`, `unassigned_at` set) and creates a new `ACTIVE` assignment for the selected therapist.
 
@@ -216,6 +220,10 @@ Media path intent:
 - Queue: `notification.booking.queue`.
 - Routing key: `appointment.booked`.
 - Event payload: `AppointmentBookedEvent(appointmentId, timestamp)`.
+- Additional integration routing keys used by matching workflow:
+  - `profile.demographics.updated`
+  - `tracking.mood.logged`
+  - `ai.crisis.alerted`
 
 ### 9.1 Event-Driven Intent (Required Architecture)
 - Command succeeds locally -> persist state -> publish event.

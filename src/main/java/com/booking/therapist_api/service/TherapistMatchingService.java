@@ -1,7 +1,11 @@
 package com.booking.therapist_api.service;
 
+import com.booking.therapist_api.config.RabbitMQConfig;
 import com.booking.therapist_api.dto.MatchingPreferenceRequest;
 import com.booking.therapist_api.dto.TherapistMatchResponse;
+import com.booking.therapist_api.event.CrisisAlertEvent;
+import com.booking.therapist_api.event.IntakeMoodLoggedEvent;
+import com.booking.therapist_api.event.ProfileDemographicsUpdatedEvent;
 import com.booking.therapist_api.entity.ProfileMatchingPreference;
 import com.booking.therapist_api.entity.Therapist;
 import com.booking.therapist_api.entity.TherapistAssignment;
@@ -10,6 +14,7 @@ import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.ProfileMatchingPreferenceRepository;
 import com.booking.therapist_api.repository.TherapistAssignmentRepository;
 import com.booking.therapist_api.repository.TherapistRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,15 +31,18 @@ public class TherapistMatchingService {
     private final ProfileMatchingPreferenceRepository preferenceRepository;
     private final TherapistRepository therapistRepository;
     private final TherapistAssignmentRepository assignmentRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     public TherapistMatchingService(
             ProfileMatchingPreferenceRepository preferenceRepository,
             TherapistRepository therapistRepository,
-            TherapistAssignmentRepository assignmentRepository
+            TherapistAssignmentRepository assignmentRepository,
+            RabbitTemplate rabbitTemplate
     ) {
         this.preferenceRepository = preferenceRepository;
         this.therapistRepository = therapistRepository;
         this.assignmentRepository = assignmentRepository;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @Transactional
@@ -50,6 +58,26 @@ public class TherapistMatchingService {
         preference.setCommunicationStyle(request.communicationStyle());
 
         preferenceRepository.save(preference);
+
+        rabbitTemplate.convertAndSend(
+            RabbitMQConfig.BOOKING_EXCHANGE,
+            RabbitMQConfig.PROFILE_DEMOGRAPHICS_UPDATED_ROUTING_KEY,
+            new ProfileDemographicsUpdatedEvent(profileId, parseAge(request.age()), request.gender())
+        );
+
+        rabbitTemplate.convertAndSend(
+            RabbitMQConfig.BOOKING_EXCHANGE,
+            RabbitMQConfig.TRACKING_MOOD_LOGGED_ROUTING_KEY,
+            new IntakeMoodLoggedEvent(profileId, request.moodLevels(), Instant.now())
+        );
+
+        if (isCrisisAlertRequested(request.selfHarmThought())) {
+            rabbitTemplate.convertAndSend(
+                RabbitMQConfig.BOOKING_EXCHANGE,
+                RabbitMQConfig.AI_CRISIS_ALERTED_ROUTING_KEY,
+                new CrisisAlertEvent(profileId, "INTAKE_FORM", "SELF_HARM_THOUGHT_DECLARED", Instant.now())
+            );
+        }
     }
 
     @Transactional(readOnly = true)
@@ -118,5 +146,25 @@ public class TherapistMatchingService {
             }
         }
         return overlaps;
+    }
+
+    private Integer parseAge(String age) {
+        if (age == null || age.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(age.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private boolean isCrisisAlertRequested(String selfHarmThought) {
+        if (selfHarmThought == null) {
+            return false;
+        }
+        String normalized = selfHarmThought.trim();
+        return "Có".equalsIgnoreCase(normalized) || "Yes".equalsIgnoreCase(normalized);
     }
 }
