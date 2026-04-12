@@ -38,6 +38,9 @@ This service currently implements Booking-domain capabilities around:
 - appointment video join state transition
 - clinical notes submission
 - reviews and therapist average rating updates
+- profile matching preference upsert (service layer)
+- therapist compatibility lookup using preference-based filtering (service layer)
+- therapist reassignment flow with ACTIVE to INACTIVE transition (service layer)
 - scheduled slot generation and cleanup
 - booking event publication to RabbitMQ
 
@@ -132,6 +135,11 @@ Contract:
   - idempotent via existence check on therapist/start/end.
 - Cleanup slots: `@Scheduled(cron = "0 0 3 1 * *", zone = "Asia/Ho_Chi_Minh")`.
   - deletes unbooked slots with `end_datetime` older than 30 days.
+
+### 5.6 Matching Service Logic
+- `savePreferences(profileId, request)` upserts `profiles_preferences` by `profile_id`.
+- `findMatches(profileId)` loads saved preference, applies therapist filtering by communication style and optional strict LGBTQ allied requirement, then returns therapists ordered by overlap of requested reasons and therapist treated challenges.
+- `assignTherapist(profileId, therapistId)` deactivates any existing `ACTIVE` assignment (`status -> INACTIVE`, `unassigned_at` set) and creates a new `ACTIVE` assignment for the selected therapist.
 
 ## 6. API Surface (Current)
 
