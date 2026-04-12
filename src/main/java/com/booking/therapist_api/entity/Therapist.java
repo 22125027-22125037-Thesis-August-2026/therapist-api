@@ -7,7 +7,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -49,11 +51,28 @@ public class Therapist {
     @Column(name = "license_url")
     private String licenseUrl;
 
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "is_lgbtq_allied")
+    private Boolean isLgbtqAllied;
+
+    @Column(name = "communication_style")
+    private String communicationStyle;
+
+    // Maps PostgreSQL varchar[] directly to Java String[].
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "treated_challenges", columnDefinition = "varchar[]")
+    private String[] treatedChallenges;
+
     @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY)
     private Set<WeeklyTemplate> weeklyTemplates = new HashSet<>();
 
     @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY)
     private Set<ScheduleSlot> scheduleSlots = new HashSet<>();
+
+    @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY)
+    private Set<TherapistAssignment> therapistAssignments = new HashSet<>();
 
     public Therapist() {
     }
@@ -130,6 +149,38 @@ public class Therapist {
         this.licenseUrl = licenseUrl;
     }
 
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public Boolean getIsLgbtqAllied() {
+        return isLgbtqAllied;
+    }
+
+    public void setIsLgbtqAllied(Boolean isLgbtqAllied) {
+        this.isLgbtqAllied = isLgbtqAllied;
+    }
+
+    public String getCommunicationStyle() {
+        return communicationStyle;
+    }
+
+    public void setCommunicationStyle(String communicationStyle) {
+        this.communicationStyle = communicationStyle;
+    }
+
+    public String[] getTreatedChallenges() {
+        return treatedChallenges;
+    }
+
+    public void setTreatedChallenges(String[] treatedChallenges) {
+        this.treatedChallenges = treatedChallenges;
+    }
+
     public Set<WeeklyTemplate> getWeeklyTemplates() {
         return weeklyTemplates;
     }
@@ -144,5 +195,13 @@ public class Therapist {
 
     public void setScheduleSlots(Set<ScheduleSlot> scheduleSlots) {
         this.scheduleSlots = scheduleSlots;
+    }
+
+    public Set<TherapistAssignment> getTherapistAssignments() {
+        return therapistAssignments;
+    }
+
+    public void setTherapistAssignments(Set<TherapistAssignment> therapistAssignments) {
+        this.therapistAssignments = therapistAssignments;
     }
 }
