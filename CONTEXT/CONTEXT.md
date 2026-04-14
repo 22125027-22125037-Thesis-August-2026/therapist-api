@@ -1,6 +1,6 @@
 # Therapist API - Implementation Context
 
-Last updated: 2026-04-12
+Last updated: 2026-04-14
 
 ## 0. Context Maintenance Rule
 Rule: Whenever major changes, new features, or architectural adjustments are made to the codebase, this CONTEXT.md file MUST be updated accordingly to reflect the current implemented reality.
@@ -29,7 +29,8 @@ This file describes the current implemented behavior of `therapist-api` (not a f
 - Datasource URL defaults to localhost Postgres with env fallbacks.
 - JPA `ddl-auto: validate`.
 - Flyway enabled (`baseline-on-migrate: true`, `baseline-version: 0`).
-- JWT secret required by `jwt.secret` (default present for local dev).
+- JWT verification uses RSA public key (`JWT_PUBLIC_KEY` / `jwt.public-key`).
+- JWT validation checks `iss`, `aud`, and optional header `kid` from config/env.
 
 ## 3. Implemented Domain Scope
 This service currently implements Booking-domain capabilities around:
@@ -180,7 +181,7 @@ Contract:
 ## 5. Implemented Business Rules
 
 ### 5.1 Booking
-- `POST /api/v1/bookings` requires authenticated principal UUID from JWT subject.
+- `POST /api/v1/bookings` requires authenticated principal UUID from JWT (`profileId` claim, fallback `sub`).
 - Booking loads slot, atomically marks it booked, creates appointment, and publishes `appointment.booked` event.
 - Default appointment mode used by booking flow: `VIDEO`.
 - New appointments start with status `UPCOMING`.
@@ -199,7 +200,7 @@ Contract:
 
 ### 5.4 Reviews
 - `POST /api/v1/reviews` is patient-only (`ROLE_PATIENT`).
-- Patient can review only own appointment (`appointments.profile_id` must match JWT subject).
+- Patient can review only own appointment (`appointments.profile_id` must match authenticated principal ID from JWT).
 - Appointment must be `COMPLETED`.
 - Only one review per appointment.
 - `therapists.rating_avg` is recalculated from average of all therapist reviews, rounded to 2 decimals.
@@ -235,23 +236,23 @@ Contract:
 - `POST /api/v1/matching/assign/{therapistId}`
 
 ### 6.2 Test/Utility APIs
-- `GET /api/test-auth/token`
-- `GET /api/test-auth/token/therapist`
 - `POST /api/v1/test/trigger-generation`
 - `POST /api/v1/test/trigger-cleanup`
 
 ## 7. Security Model (Current)
 - Stateless security (`SessionCreationPolicy.STATELESS`).
-- JWT filter extracts:
-  - `subject` -> principal string (UUID expected by controllers).
-  - `role` claim -> granted authority.
+- JWT filter verifies RS256 signature with configured RSA public key.
+- JWT filter validates configured issuer (`iss`) and audience (`aud`); optional `kid` check is supported.
+- JWT filter extracts principal as:
+  - `profileId` claim when present (used by booking/matching/review flows)
+  - fallback: `sub` claim.
+- JWT `role` claim is normalized to Spring authorities (for example `TEEN` -> `ROLE_PATIENT`, `THERAPIST` -> `ROLE_THERAPIST`).
 - HTTP rules:
-  - `/api/test-auth/**` permit all.
   - `/api/v1/test/**` permit all.
   - `/api/v1/**` authenticated.
 - Method security enabled (`@EnableMethodSecurity`) for role checks in controllers.
 - `GrantedAuthorityDefaults("")` is used so `hasRole('ROLE_X')` matches literal `ROLE_X` authorities.
-- Matching endpoints derive `profileId` from JWT `subject` and do not accept `profileId` in request payloads.
+- Matching endpoints derive `profileId` from JWT authenticated principal and do not accept `profileId` in request payloads.
 
 ## 7.1 Hybrid Security Model (Required Architecture)
 System-wide security intent is hybrid:

@@ -78,6 +78,6 @@ public class BookingService {
             appointmentRepository.save(appointment);
         }
 
-        return new VideoJoinResponseDto(appointment.getMeetingLink(), "mock-jwt-token-for-now");
+        return new VideoJoinResponseDto(appointment.getMeetingLink(), "sdk-token-placeholder");
     }
 }

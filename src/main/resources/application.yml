@@ -2,6 +2,9 @@ spring:
   application:
     name: therapist-api
 
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:${POSTGRES_PORT:5433}}/${DB_NAME:${POSTGRES_DB:therapist_api}}
     username: ${DB_USERNAME:${POSTGRES_USER:postgres}}
@@ -23,5 +26,11 @@ spring:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
+server:
+  port: ${SERVER_PORT:8080}
+
 jwt:
-  secret: local-dev-jwt-secret-key-minimum-32-characters
+  public-key: ${JWT_PUBLIC_KEY:}
+  signing-kid: ${JWT_SIGNING_KID:}
+  issuer: ${JWT_ISSUER:mhsa-auth}
+  audience: ${JWT_AUDIENCE:mhsa-api}
