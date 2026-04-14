@@ -2,6 +2,10 @@
 
 Spring Boot API for therapist booking workflows.
 
+## API Documentation
+
+- Controller reference: `docs/API_CONTROLLER_REFERENCE.md`
+
 ## Prerequisites
 
 - Java 17

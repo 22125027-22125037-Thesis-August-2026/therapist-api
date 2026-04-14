@@ -1,0 +1,397 @@
+# API Controller Reference
+
+Swagger-style, human-readable API reference for `therapist-api` controllers.
+
+## Base URL
+
+- Local default: `http://localhost:8082`
+- Production/staging: use the deployed host for that environment.
+
+## Authentication
+
+Most endpoints require JWT bearer authentication.
+
+- Header: `Authorization: Bearer <access_token>`
+- Security rule:
+- `/api/v1/test/**` is public (no auth required)
+- `/api/v1/**` requires authentication
+- Role checks:
+- Some endpoints additionally require `ROLE_PATIENT` or `ROLE_THERAPIST`
+
+JWT claim usage in this API:
+
+- Principal ID comes from `profileId` claim, or falls back to JWT `sub`
+- Role comes from `role` claim and is normalized to `ROLE_*`
+
+## Common Error Response Format
+
+Errors are returned as RFC 7807 `ProblemDetail` JSON.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Validation failed for one or more request fields",
+  "instance": "/api/v1/reviews",
+  "errors": {
+    "rating": ["rating must be between 1 and 5"]
+  }
+}
+```
+
+Known titles:
+
+- `Booking Conflict` (`409`)
+- `Resource Not Found` (`404`)
+- `Room Not Open` (`403`)
+- `Invalid Appointment State` (`409`)
+- `Clinical Note Conflict` (`409`)
+- `Review Conflict` (`409`)
+- `Review Forbidden` (`403`)
+- `Validation Error` (`400`)
+- `Internal Server Error` (`500`)
+
+## Conventions
+
+- All IDs are UUIDs.
+- Date/time fields are ISO-8601 timestamps in UTC.
+- Successful creation endpoints return `201 Created`.
+- No-content success endpoints return `204 No Content`.
+
+## Endpoint Summary
+
+| Method | Path | Auth | Role | Description |
+| --- | --- | --- | --- | --- |
+| POST | `/api/v1/bookings` | Yes | Any authenticated user | Create a booking from an available slot |
+| GET | `/api/v1/bookings/{appointmentId}/join` | Yes | Any authenticated user | Join a video session |
+| GET | `/api/v1/therapists/{id}/slots` | Yes | Any authenticated user | Get pageable future available slots |
+| POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST` | Submit a clinical note |
+| POST | `/api/v1/reviews` | Yes | `ROLE_PATIENT` | Submit a therapist review |
+| POST | `/api/v1/matching/preferences` | Yes | Any authenticated user | Save profile matching preferences |
+| GET | `/api/v1/matching/therapists` | Yes | Any authenticated user | Find therapist matches by preferences |
+| POST | `/api/v1/matching/assign/{therapistId}` | Yes | Any authenticated user | Assign therapist to profile |
+| POST | `/api/v1/test/trigger-generation` | No | Public | Trigger schedule generation job |
+| POST | `/api/v1/test/trigger-cleanup` | No | Public | Trigger schedule cleanup job |
+
+## Detailed Endpoints
+
+### 1. Create Booking
+
+- Method/Path: `POST /api/v1/bookings`
+- Auth: Required
+- Description: Books a slot and creates a video appointment.
+
+Request body:
+
+```json
+{
+  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
+  "status": "UPCOMING",
+  "message": "Booking created successfully"
+}
+```
+
+Possible errors:
+
+- `400` validation failure (`slotId` missing)
+- `404` slot not found
+- `409` slot already booked
+- `401` unauthenticated
+
+### 2. Join Video Session
+
+- Method/Path: `GET /api/v1/bookings/{appointmentId}/join`
+- Auth: Required
+- Description: Returns meeting URL and token. If appointment status is `UPCOMING`, this call updates it to `IN_PROGRESS`.
+
+Path params:
+
+- `appointmentId` (UUID)
+
+Response `200`:
+
+```json
+{
+  "meetingUrl": "https://video.example.com/room/abc123",
+  "sdkToken": "sdk-token-placeholder"
+}
+```
+
+Possible errors:
+
+- `403` room not open yet (opens 10 minutes before scheduled time)
+- `404` appointment not found
+- `401` unauthenticated
+
+### 3. Get Therapist Available Slots
+
+- Method/Path: `GET /api/v1/therapists/{id}/slots`
+- Auth: Required
+- Description: Returns future unbooked slots for one therapist, paginated.
+
+Path params:
+
+- `id` (UUID therapist ID)
+
+Query params (Spring Pageable):
+
+- `page` (default `0`)
+- `size` (default framework value)
+- `sort` (for example `sort=startDatetime,asc`)
+
+Response `200` (example):
+
+```json
+{
+  "content": [
+    {
+      "slotId": "7d99dc64-9374-4647-9f06-abf346f074ef",
+      "startDatetime": "2026-04-20T08:00:00Z",
+      "endDatetime": "2026-04-20T08:50:00Z"
+    }
+  ],
+  "pageable": {},
+  "totalPages": 1,
+  "totalElements": 1,
+  "last": true,
+  "size": 20,
+  "number": 0,
+  "sort": {},
+  "numberOfElements": 1,
+  "first": true,
+  "empty": false
+}
+```
+
+Possible errors:
+
+- `404` therapist not found
+- `401` unauthenticated
+
+### 4. Submit Clinical Note
+
+- Method/Path: `POST /api/v1/notes`
+- Auth: Required
+- Role: `ROLE_THERAPIST`
+- Description: Creates one clinical note for an in-progress appointment and marks appointment as `COMPLETED`.
+
+Request body:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "diagnosis": "Moderate anxiety symptoms",
+  "recommendations": "Weekly CBT sessions for 8 weeks"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "noteId": "2eb65f39-7da4-4ca4-9820-e9c412084d45",
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "appointmentStatus": "COMPLETED",
+  "createdAt": "2026-04-15T07:35:21.913Z",
+  "message": "Clinical note submitted successfully"
+}
+```
+
+Possible errors:
+
+- `400` validation failure
+- `403` forbidden role
+- `404` appointment not found
+- `409` appointment not `IN_PROGRESS`
+- `409` note already exists for appointment
+- `401` unauthenticated
+
+### 5. Submit Review
+
+- Method/Path: `POST /api/v1/reviews`
+- Auth: Required
+- Role: `ROLE_PATIENT`
+- Description: Submits one review for a completed appointment owned by the caller.
+
+Request body:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "rating": 5,
+  "comment": "Very helpful session"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "reviewId": "f4a1ad89-b6df-4867-9fe8-0d01fd3265f5",
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "therapistId": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+  "rating": 5,
+  "therapistRatingAvg": 4.67,
+  "createdAt": "2026-04-15T07:40:03.011Z",
+  "message": "Review submitted successfully"
+}
+```
+
+Possible errors:
+
+- `400` validation failure (`rating` 1-5, comment <= 1000 chars)
+- `403` forbidden role
+- `403` appointment does not belong to caller
+- `404` appointment not found
+- `409` appointment not `COMPLETED`
+- `409` review already exists
+- `401` unauthenticated
+
+### 6. Save Matching Preferences
+
+- Method/Path: `POST /api/v1/matching/preferences`
+- Auth: Required
+- Description: Upserts matching preferences for authenticated profile.
+
+Request body:
+
+```json
+{
+  "has_prior_counseling": "No",
+  "gender": "female",
+  "age": "22",
+  "sexual_orientation": "heterosexual",
+  "is_lgbtq_priority": false,
+  "self_harm_thought": "No",
+  "reasons": ["stress", "sleep"],
+  "mood_levels": {
+    "anxiety": 3,
+    "lossInterest": 2,
+    "fatigue": 4
+  },
+  "communication_style": "empathetic"
+}
+```
+
+Validation notes:
+
+- `mood_levels` must include exactly `anxiety`, `lossInterest`, `fatigue`
+
+Response `204`:
+
+- No body
+
+Possible errors:
+
+- `400` validation failure
+- `401` unauthenticated
+
+### 7. Find Matching Therapists
+
+- Method/Path: `GET /api/v1/matching/therapists`
+- Auth: Required
+- Description: Returns therapist candidates computed from saved preferences.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+    "full_name": "Nguyen Thi A",
+    "specialization": "Anxiety & Stress",
+    "match_score": 2,
+    "matching_reasons": ["stress", "sleep"],
+    "communication_style": "empathetic"
+  }
+]
+```
+
+Possible errors:
+
+- `404` matching preferences not found for caller
+- `401` unauthenticated
+
+### 8. Assign Therapist
+
+- Method/Path: `POST /api/v1/matching/assign/{therapistId}`
+- Auth: Required
+- Description: Assigns selected therapist to caller profile; previous active assignment is closed.
+
+Path params:
+
+- `therapistId` (UUID)
+
+Response `204`:
+
+- No body
+
+Possible errors:
+
+- `404` therapist not found
+- `401` unauthenticated
+
+### 9. Trigger Slot Generation (Test Endpoint)
+
+- Method/Path: `POST /api/v1/test/trigger-generation`
+- Auth: Not required
+- Description: Triggers internal schedule generation job.
+
+Response `200`:
+
+```json
+{
+  "message": "Schedule slot generation triggered"
+}
+```
+
+### 10. Trigger Slot Cleanup (Test Endpoint)
+
+- Method/Path: `POST /api/v1/test/trigger-cleanup`
+- Auth: Not required
+- Description: Triggers cleanup of old unbooked slots.
+
+Response `200`:
+
+```json
+{
+  "message": "Schedule slot cleanup triggered"
+}
+```
+
+## Quick cURL Examples
+
+Create booking:
+
+```bash
+curl -X POST "http://localhost:8082/api/v1/bookings" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"slotId":"9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6"}'
+```
+
+Get matching therapists:
+
+```bash
+curl "http://localhost:8082/api/v1/matching/therapists" \
+  -H "Authorization: Bearer <token>"
+```
+
+Submit review:
+
+```bash
+curl -X POST "http://localhost:8082/api/v1/reviews" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"appointmentId":"76d7800a-ae23-4f65-9d3d-c9536e2bdf5a","rating":5,"comment":"Very helpful session"}'
+```
