@@ -28,6 +28,16 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    accesslog:
+      enabled: true
+      # %D = processing time in ms, %s = HTTP status, %r = first request line.
+      pattern: '%h %l %u %t "%r" %s %b %D'
+
+logging:
+  level:
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
+    org.springframework.security: INFO
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY:}

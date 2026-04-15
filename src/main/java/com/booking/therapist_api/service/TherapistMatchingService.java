@@ -59,6 +59,11 @@ public class TherapistMatchingService {
 
         preferenceRepository.save(preference);
 
+        List<Therapist> matchedTherapists = findMatchingTherapists(preference);
+        if (!matchedTherapists.isEmpty()) {
+            upsertActiveAssignment(profileId, matchedTherapists.get(0));
+        }
+
         rabbitTemplate.convertAndSend(
             RabbitMQConfig.BOOKING_EXCHANGE,
             RabbitMQConfig.PROFILE_DEMOGRAPHICS_UPDATED_ROUTING_KEY,
@@ -87,23 +92,45 @@ public class TherapistMatchingService {
                         "Matching preference not found for profile id: " + profileId));
 
         String[] requestedReasons = preference.getReasons() == null ? new String[0] : preference.getReasons();
+        List<Therapist> therapists = findMatchingTherapists(preference);
+
+        return therapists.stream()
+            .map(therapist -> toMatchResponse(therapist, requestedReasons))
+            .toList();
+        }
+
+        private List<Therapist> findMatchingTherapists(ProfileMatchingPreference preference) {
+        String[] requestedReasons = preference.getReasons() == null ? new String[0] : preference.getReasons();
         boolean isLgbtqPriority = Boolean.TRUE.equals(preference.getIsLgbtqPriority());
+        String communicationStyle = normalizeCommunicationStyle(preference.getCommunicationStyle());
 
         List<Therapist> therapists = therapistRepository.findMatchingTherapists(
                 isLgbtqPriority,
-                preference.getCommunicationStyle(),
+            communicationStyle,
                 requestedReasons
         );
 
-        return therapists.stream()
-                .map(therapist -> toMatchResponse(therapist, requestedReasons))
-                .toList();
-    }
+        // Unknown communication style falls back to reason/LGBTQ filtering.
+        if (therapists.isEmpty() && communicationStyle != null) {
+            therapists = therapistRepository.findMatchingTherapists(
+                isLgbtqPriority,
+                null,
+                requestedReasons
+            );
+        }
+
+        return therapists;
+        }
 
     @Transactional
     public void assignTherapist(UUID profileId, UUID therapistId) {
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new ResourceNotFoundException("Therapist not found for id: " + therapistId));
+
+        upsertActiveAssignment(profileId, therapist);
+        }
+
+        private void upsertActiveAssignment(UUID profileId, Therapist therapist) {
 
         assignmentRepository.findByProfileIdAndStatus(profileId, AssignmentStatus.ACTIVE)
                 .ifPresent(activeAssignment -> {
@@ -118,6 +145,14 @@ public class TherapistMatchingService {
         assignment.setStatus(AssignmentStatus.ACTIVE);
 
         assignmentRepository.save(assignment);
+    }
+
+    private String normalizeCommunicationStyle(String communicationStyle) {
+        if (communicationStyle == null) {
+            return null;
+        }
+        String normalized = communicationStyle.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private TherapistMatchResponse toMatchResponse(Therapist therapist, String[] requestedReasons) {

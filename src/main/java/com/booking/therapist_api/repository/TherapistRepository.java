@@ -13,7 +13,7 @@ public interface TherapistRepository extends JpaRepository<Therapist, UUID> {
 	@Query(value = """
 			SELECT t.*
 			FROM therapists t
-			WHERE t.communication_style = :communicationStyle
+			WHERE (:communicationStyle IS NULL OR LOWER(t.communication_style) = LOWER(:communicationStyle))
 			  AND (:isLgbtqPriority = false OR t.is_lgbtq_allied = true)
 			ORDER BY (
 				SELECT COUNT(*)

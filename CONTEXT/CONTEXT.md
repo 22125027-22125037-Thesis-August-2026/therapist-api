@@ -1,6 +1,6 @@
 # Therapist API - Implementation Context
 
-Last updated: 2026-04-14
+Last updated: 2026-04-15
 
 ## 0. Context Maintenance Rule
 Rule: Whenever major changes, new features, or architectural adjustments are made to the codebase, this CONTEXT.md file MUST be updated accordingly to reflect the current implemented reality.
@@ -216,11 +216,13 @@ Contract:
 
 ### 5.6 Matching Service Logic
 - `savePreferences(profileId, request)` upserts `profiles_preferences` by `profile_id`.
+- After preference upsert, the service computes therapist matches and auto-assigns the top-ranked therapist when at least one match exists.
 - `savePreferences(profileId, request)` also publishes cross-domain integration events via RabbitMQ topic exchange `booking.exchange`:
   - `profile.demographics.updated` with demographics payload.
   - `tracking.mood.logged` with mood levels and timestamp.
   - `ai.crisis.alerted` when `self_harm_thought` indicates positive risk ("Có"/"Yes" intent), with `source=INTAKE_FORM`.
 - `findMatches(profileId)` loads saved preference, applies therapist filtering by communication style and optional strict LGBTQ allied requirement, then returns therapists ordered by overlap of requested reasons and therapist treated challenges.
+- If no therapist is found for the exact requested `communication_style`, matching automatically falls back to style-agnostic filtering while keeping the LGBTQ and reason-overlap ordering logic.
 - `assignTherapist(profileId, therapistId)` deactivates any existing `ACTIVE` assignment (`status -> INACTIVE`, `unassigned_at` set) and creates a new `ACTIVE` assignment for the selected therapist.
 
 ## 6. API Surface (Current)
@@ -345,7 +347,7 @@ When implementing new features, prefer updating this section first so planned be
 
 ### Step 1: Submit Preferences
 Goal:
-- Verify `POST /api/v1/matching/preferences` persists matching preference data for the authenticated profile.
+- Verify `POST /api/v1/matching/preferences` persists matching preference data and triggers auto-assignment of top therapist for the authenticated profile.
 
 How to test:
 - Generate/use a valid JWT where `subject` is a profile UUID.
@@ -379,6 +381,8 @@ DB verification (PostgreSQL):
   - `profile_id` = JWT subject UUID
   - `has_prior_counseling`, `sexual_orientation`, `is_lgbtq_priority`, `reasons`, `communication_style` updated
   - `last_updated_at` refreshed
+- Query `therapist_assignments` by the same profile UUID.
+- Confirm at least one `ACTIVE` assignment exists after successful preference submission when matches are available.
 
 Example check:
 ```sql
@@ -414,7 +418,8 @@ How to test:
 - Call `GET /api/v1/matching/therapists` with the same JWT.
 
 Expected verification in JSON response:
-- Returned therapists match requested `communication_style`.
+- Returned therapists match requested `communication_style` when exact-style matches exist.
+- If no therapist has the requested `communication_style`, response still returns style-agnostic fallback matches ordered by overlap/rating rules.
 - If `is_lgbtq_priority=true`, all returned therapists have `is_lgbtq_allied=true` in DB.
 - Results are ordered by descending overlap count between:
   - user `reasons` (from preferences)
@@ -429,7 +434,7 @@ FROM therapists;
 
 ### Step 4: Assign Therapist
 Goal:
-- Verify `POST /api/v1/matching/assign/{therapistId}` performs ACTIVE to INACTIVE transition and inserts new ACTIVE assignment.
+- Verify `POST /api/v1/matching/assign/{therapistId}` can be used as a manual reassignment endpoint, performing ACTIVE to INACTIVE transition and inserting a new ACTIVE assignment.
 
 How to test:
 - Choose a therapist ID from Step 3 results.
