@@ -42,6 +42,7 @@ This service currently implements Booking-domain capabilities around:
 - profile matching preference upsert (service layer)
 - therapist compatibility lookup using preference-based filtering (service layer)
 - therapist reassignment flow with ACTIVE to INACTIVE transition (service layer)
+- active therapist assignment detail lookup by profile ID path with self-or-admin authorization
 - scheduled slot generation and cleanup
 - booking event publication to RabbitMQ
 
@@ -225,6 +226,14 @@ Contract:
 - If no therapist is found for the exact requested `communication_style`, matching automatically falls back to style-agnostic filtering while keeping the LGBTQ and reason-overlap ordering logic.
 - `assignTherapist(profileId, therapistId)` deactivates any existing `ACTIVE` assignment (`status -> INACTIVE`, `unassigned_at` set) and creates a new `ACTIVE` assignment for the selected therapist.
 
+### 5.7 Active Assignment Lookup
+- `GET /api/v1/profiles/{profileId}/assigned-therapist` returns `ACTIVE` therapist assignment details for a requested profile.
+- Authorization policy is `self-or-admin`:
+  - allowed when JWT principal (`profileId` claim, fallback `sub`) equals path `profileId`
+  - allowed when caller has `ROLE_ADMIN`
+  - otherwise request is denied with `403 Forbidden`
+- If no `ACTIVE` assignment exists for the requested profile, endpoint returns `404 Not Found`.
+
 ## 6. API Surface (Current)
 
 ### 6.1 Production APIs under `/api/v1`
@@ -236,6 +245,7 @@ Contract:
 - `POST /api/v1/matching/preferences`
 - `GET /api/v1/matching/therapists`
 - `POST /api/v1/matching/assign/{therapistId}`
+- `GET /api/v1/profiles/{profileId}/assigned-therapist`
 
 ### 6.2 Test/Utility APIs
 - `POST /api/v1/test/trigger-generation`
@@ -255,6 +265,7 @@ Contract:
 - Method security enabled (`@EnableMethodSecurity`) for role checks in controllers.
 - `GrantedAuthorityDefaults("")` is used so `hasRole('ROLE_X')` matches literal `ROLE_X` authorities.
 - Matching endpoints derive `profileId` from JWT authenticated principal and do not accept `profileId` in request payloads.
+- Assignment read endpoint accepts `profileId` in path and enforces `self-or-admin` via method security.
 
 ## 7.1 Hybrid Security Model (Required Architecture)
 System-wide security intent is hybrid:
@@ -342,122 +353,3 @@ The following are required system constraints even where enforcement is still pe
 - Cancellation rule: Appointment cancellation is only allowed at least 24 hours before `start_datetime`.
 
 When implementing new features, prefer updating this section first so planned behavior and implemented behavior remain clearly separated.
-
-## 13. Manual Testing Plan: Therapist Matching Workflow
-
-### Step 1: Submit Preferences
-Goal:
-- Verify `POST /api/v1/matching/preferences` persists matching preference data and triggers auto-assignment of top therapist for the authenticated profile.
-
-How to test:
-- Generate/use a valid JWT where `subject` is a profile UUID.
-- Call `POST /api/v1/matching/preferences` with `Authorization: Bearer <token>` and a valid JSON payload.
-
-Example payload:
-```json
-{
-  "has_prior_counseling": "No",
-  "gender": "Female",
-  "age": "24",
-  "sexual_orientation": "Heterosexual",
-  "is_lgbtq_priority": true,
-  "self_harm_thought": "Có",
-  "reasons": ["anxiety", "burnout", "stress"],
-  "mood_levels": {
-    "anxiety": 4,
-    "lossInterest": 3,
-    "fatigue": 5
-  },
-  "communication_style": "empathetic"
-}
-```
-
-Expected API result:
-- HTTP `204 No Content`.
-
-DB verification (PostgreSQL):
-- Query `profiles_preferences` (logical name `profiles_matching_preferences`) by JWT subject UUID.
-- Confirm row exists (or was updated) with:
-  - `profile_id` = JWT subject UUID
-  - `has_prior_counseling`, `sexual_orientation`, `is_lgbtq_priority`, `reasons`, `communication_style` updated
-  - `last_updated_at` refreshed
-- Query `therapist_assignments` by the same profile UUID.
-- Confirm at least one `ACTIVE` assignment exists after successful preference submission when matches are available.
-
-Example check:
-```sql
-SELECT profile_id, has_prior_counseling, sexual_orientation, is_lgbtq_priority, reasons, communication_style, last_updated_at
-FROM profiles_preferences
-WHERE profile_id = '<jwt-subject-uuid>'::uuid;
-```
-
-### Step 2: Verify Event Publishing (RabbitMQ)
-Goal:
-- Verify cross-domain events are emitted after preference submission.
-
-How to test:
-- Open RabbitMQ Management UI: `http://localhost:15672`.
-- Login with your local credentials.
-- Navigate to `Exchanges` -> `booking.exchange` (type: topic).
-- Submit preferences again (Step 1) and observe exchange publish metrics / routed message activity.
-
-What to verify:
-- Event with routing key `profile.demographics.updated` is published.
-- Event with routing key `tracking.mood.logged` is published.
-- If `self_harm_thought` is `Có` or `Yes`, event with routing key `ai.crisis.alerted` is published.
-- Payload expectations:
-  - demographics includes `profileId`, parsed integer `age` (or null if unparsable), and `gender`
-  - mood includes `profileId`, `moodLevels`, `timestamp`
-  - crisis includes `profileId`, `source=INTAKE_FORM`, `triggerReason=SELF_HARM_THOUGHT_DECLARED`, `timestamp`
-
-### Step 3: Fetch Matches
-Goal:
-- Verify `GET /api/v1/matching/therapists` returns correctly filtered and ordered therapist recommendations.
-
-How to test:
-- Call `GET /api/v1/matching/therapists` with the same JWT.
-
-Expected verification in JSON response:
-- Returned therapists match requested `communication_style` when exact-style matches exist.
-- If no therapist has the requested `communication_style`, response still returns style-agnostic fallback matches ordered by overlap/rating rules.
-- If `is_lgbtq_priority=true`, all returned therapists have `is_lgbtq_allied=true` in DB.
-- Results are ordered by descending overlap count between:
-  - user `reasons` (from preferences)
-  - therapist `treated_challenges`
-- Response entries include `match_score` and/or `matching_reasons` consistent with overlap logic.
-
-Optional SQL cross-check:
-```sql
-SELECT therapist_id, full_name, communication_style, is_lgbtq_allied, treated_challenges
-FROM therapists;
-```
-
-### Step 4: Assign Therapist
-Goal:
-- Verify `POST /api/v1/matching/assign/{therapistId}` can be used as a manual reassignment endpoint, performing ACTIVE to INACTIVE transition and inserting a new ACTIVE assignment.
-
-How to test:
-- Choose a therapist ID from Step 3 results.
-- Call `POST /api/v1/matching/assign/{therapistId}` with the same JWT.
-
-Expected API result:
-- HTTP `204 No Content`.
-
-DB verification in `therapist_assignments`:
-- Any previous row for this `profile_id` with `status='ACTIVE'` should become:
-  - `status='INACTIVE'`
-  - `unassigned_at` populated with a recent timestamp
-- A new row should exist with:
-  - same `profile_id`
-  - requested `therapist_id`
-  - `status='ACTIVE'`
-  - `assigned_at` populated
-  - `unassigned_at` is `NULL`
-
-Example checks:
-```sql
-SELECT assignment_id, profile_id, therapist_id, status, assigned_at, unassigned_at
-FROM therapist_assignments
-WHERE profile_id = '<jwt-subject-uuid>'::uuid
-ORDER BY assigned_at DESC;
-```

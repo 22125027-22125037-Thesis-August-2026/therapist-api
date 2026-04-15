@@ -71,6 +71,7 @@ Known titles:
 | POST | `/api/v1/matching/preferences` | Yes | Any authenticated user | Save profile matching preferences |
 | GET | `/api/v1/matching/therapists` | Yes | Any authenticated user | Find therapist matches by preferences |
 | POST | `/api/v1/matching/assign/{therapistId}` | Yes | Any authenticated user | Assign therapist to profile |
+| GET | `/api/v1/profiles/{profileId}/assigned-therapist` | Yes | `self` or `ROLE_ADMIN` | Get active therapist assignment details for a profile |
 | POST | `/api/v1/test/trigger-generation` | No | Public | Trigger schedule generation job |
 | POST | `/api/v1/test/trigger-cleanup` | No | Public | Trigger schedule cleanup job |
 
@@ -341,7 +342,58 @@ Possible errors:
 - `404` therapist not found
 - `401` unauthenticated
 
-### 9. Trigger Slot Generation (Test Endpoint)
+### 9. Get Active Assigned Therapist
+
+- Method/Path: `GET /api/v1/profiles/{profileId}/assigned-therapist`
+- Auth: Required
+- Description: Returns the `ACTIVE` therapist assignment for the requested profile.
+
+Path params:
+
+- `profileId` (UUID profile ID)
+
+Authorization:
+
+- Allowed when JWT principal ID equals path `profileId`.
+- Allowed when caller has `ROLE_ADMIN`.
+- Otherwise returns `403`.
+
+Response `200` (example):
+
+```json
+{
+  "assignmentId": "a6120b6f-0d8a-47b8-b9a8-8df84f4f347d",
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "status": "ACTIVE",
+  "assignedAt": "2026-04-15T08:10:19.251Z",
+  "therapist": {
+    "id": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+    "full_name": "Nguyen Thi A",
+    "specialization": "Anxiety & Stress",
+    "communication_style": "empathetic"
+  }
+}
+```
+
+Possible errors:
+
+- `403` caller is not the same profile and not admin
+- `404` no active assignment found for requested profile
+- `401` unauthenticated
+
+Response `403` (example):
+
+```json
+{
+  "type": "about:blank",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Access Denied",
+  "instance": "/api/v1/profiles/76d7800a-ae23-4f65-9d3d-c9536e2bdf5a/assigned-therapist"
+}
+```
+
+### 10. Trigger Slot Generation (Test Endpoint)
 
 - Method/Path: `POST /api/v1/test/trigger-generation`
 - Auth: Not required
@@ -355,7 +407,7 @@ Response `200`:
 }
 ```
 
-### 10. Trigger Slot Cleanup (Test Endpoint)
+### 11. Trigger Slot Cleanup (Test Endpoint)
 
 - Method/Path: `POST /api/v1/test/trigger-cleanup`
 - Auth: Not required
@@ -384,6 +436,13 @@ Get matching therapists:
 
 ```bash
 curl "http://localhost:8082/api/v1/matching/therapists" \
+  -H "Authorization: Bearer <token>"
+```
+
+Get active assigned therapist:
+
+```bash
+curl "http://localhost:8082/api/v1/profiles/<profile-id>/assigned-therapist" \
   -H "Authorization: Bearer <token>"
 ```
 
