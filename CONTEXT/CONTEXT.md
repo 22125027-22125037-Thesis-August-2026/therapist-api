@@ -232,6 +232,8 @@ Contract:
   - allowed when JWT principal (`profileId` claim, fallback `sub`) equals path `profileId`
   - allowed when caller has `ROLE_ADMIN`
   - otherwise request is denied with `403 Forbidden`
+- Controller-level authorization expression currently used:
+  - `@PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")`
 - If no `ACTIVE` assignment exists for the requested profile, endpoint returns `404 Not Found`.
 
 ## 6. API Surface (Current)
@@ -266,6 +268,8 @@ Contract:
 - `GrantedAuthorityDefaults("")` is used so `hasRole('ROLE_X')` matches literal `ROLE_X` authorities.
 - Matching endpoints derive `profileId` from JWT authenticated principal and do not accept `profileId` in request payloads.
 - Assignment read endpoint accepts `profileId` in path and enforces `self-or-admin` via method security.
+- Recommended reusable method-security pattern for profile-scoped reads:
+  - `@PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")`
 
 ## 7.1 Hybrid Security Model (Required Architecture)
 System-wide security intent is hybrid:
