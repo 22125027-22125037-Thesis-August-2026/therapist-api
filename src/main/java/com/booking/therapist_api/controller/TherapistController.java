@@ -1,6 +1,7 @@
 package com.booking.therapist_api.controller;
 
 import com.booking.therapist_api.dto.ScheduleSlotResponseDto;
+import com.booking.therapist_api.dto.TherapistDetailResponseDto;
 import com.booking.therapist_api.service.TherapistService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,11 @@ public class TherapistController {
 
     public TherapistController(TherapistService therapistService) {
         this.therapistService = therapistService;
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<TherapistDetailResponseDto> getTherapistDetail(@PathVariable("id") UUID therapistId) {
+        return ResponseEntity.ok(therapistService.getTherapistDetail(therapistId));
     }
 
     @GetMapping("/{id}/slots")

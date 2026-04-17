@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface WeeklyTemplateRepository extends JpaRepository<WeeklyTemplate, UUID> {
 
     List<WeeklyTemplate> findByIsActiveTrue();
+
+    List<WeeklyTemplate> findByTherapist_TherapistIdAndIsActiveTrueOrderByDayOfWeekAscStartTimeAsc(UUID therapistId);
 }
