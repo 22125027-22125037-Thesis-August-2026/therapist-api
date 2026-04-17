@@ -1,6 +1,7 @@
 package com.booking.therapist_api.service;
 
 import com.booking.therapist_api.dto.BookingResponseDto;
+import com.booking.therapist_api.dto.UpcomingAppointmentResponseDto;
 import com.booking.therapist_api.dto.VideoJoinResponseDto;
 import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.entity.ScheduleSlot;
@@ -79,5 +80,27 @@ public class BookingService {
         }
 
         return new VideoJoinResponseDto(appointment.getMeetingLink(), "sdk-token-placeholder");
+    }
+
+    @Transactional(readOnly = true)
+    public UpcomingAppointmentResponseDto getClosestUpcomingAppointment(UUID profileId) {
+        Appointment appointment = appointmentRepository
+                .findFirstByProfileIdAndStartDatetimeAfterAndStatusOrderByStartDatetimeAsc(
+                        profileId,
+                        Instant.now(),
+                        AppointmentStatus.UPCOMING
+                )
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No upcoming appointment found for profile id: " + profileId));
+
+        return new UpcomingAppointmentResponseDto(
+                appointment.getId(),
+                appointment.getProfileId(),
+                appointment.getTherapist().getTherapistId(),
+                appointment.getSlot().getId(),
+                appointment.getMode().name(),
+                appointment.getStatus().name(),
+                appointment.getStartDatetime()
+        );
     }
 }
