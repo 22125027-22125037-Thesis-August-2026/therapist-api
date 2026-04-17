@@ -1,6 +1,7 @@
 package com.booking.therapist_api.service;
 
 import com.booking.therapist_api.dto.BookingResponseDto;
+import com.booking.therapist_api.dto.AppointmentHistoryItemResponseDto;
 import com.booking.therapist_api.dto.UpcomingAppointmentResponseDto;
 import com.booking.therapist_api.dto.VideoJoinResponseDto;
 import com.booking.therapist_api.entity.Appointment;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -102,5 +104,26 @@ public class BookingService {
                 appointment.getStatus().name(),
                 appointment.getStartDatetime()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<AppointmentHistoryItemResponseDto> getCompletedAndCancelledAppointments(UUID profileId) {
+        List<AppointmentStatus> historyStatuses = List.of(AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED);
+        return appointmentRepository
+                .findByProfileIdAndStatusInOrderByStartDatetimeDesc(profileId, historyStatuses)
+                .stream()
+                .map(appointment -> new AppointmentHistoryItemResponseDto(
+                        appointment.getId(),
+                        appointment.getProfileId(),
+                        appointment.getTherapist().getTherapistId(),
+                        appointment.getTherapist().getFullName(),
+                        appointment.getTherapist().getSpecialization(),
+                        appointment.getTherapist().getCountry(),
+                        appointment.getSlot().getId(),
+                        appointment.getMode().name(),
+                        appointment.getStatus().name(),
+                        appointment.getStartDatetime()
+                ))
+                .toList();
     }
 }

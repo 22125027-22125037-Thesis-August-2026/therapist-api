@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,5 +21,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 			UUID profileId,
 			Instant startDatetime,
 			AppointmentStatus status
+	);
+
+	List<Appointment> findByProfileIdAndStatusInOrderByStartDatetimeDesc(
+			UUID profileId,
+			Collection<AppointmentStatus> statuses
 	);
 }

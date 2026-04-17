@@ -2,6 +2,7 @@ package com.booking.therapist_api.controller;
 
 import com.booking.therapist_api.dto.BookingRequestDto;
 import com.booking.therapist_api.dto.BookingResponseDto;
+import com.booking.therapist_api.dto.AppointmentHistoryItemResponseDto;
 import com.booking.therapist_api.dto.UpcomingAppointmentResponseDto;
 import com.booking.therapist_api.dto.VideoJoinResponseDto;
 import com.booking.therapist_api.service.BookingService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -49,5 +51,13 @@ public class AppointmentController {
             @PathVariable UUID profileId
     ) {
         return ResponseEntity.ok(bookingService.getClosestUpcomingAppointment(profileId));
+    }
+
+    @GetMapping("/profiles/{profileId}/appointments/history")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    public ResponseEntity<List<AppointmentHistoryItemResponseDto>> getCompletedAndCancelledAppointments(
+            @PathVariable UUID profileId
+    ) {
+        return ResponseEntity.ok(bookingService.getCompletedAndCancelledAppointments(profileId));
     }
 }
