@@ -24,6 +24,9 @@ Important `.env` keys:
 
 - `SERVER_PORT` - API HTTP port (default `8080`)
 - `POSTGRES_PORT` - host port mapped to Postgres container (`5432` inside container)
+- `PGADMIN_PORT` - host port mapped to pgAdmin web UI (`80` inside container)
+- `PGADMIN_DEFAULT_EMAIL` - pgAdmin login email
+- `PGADMIN_DEFAULT_PASSWORD` - pgAdmin login password
 - `RABBITMQ_AMQP_PORT` - host AMQP port (`5672` inside container)
 - `RABBITMQ_MANAGEMENT_PORT` - host RabbitMQ UI port (`15672` inside container)
 
@@ -31,6 +34,9 @@ Current local defaults in `.env`:
 
 - `SERVER_PORT=8082`
 - `POSTGRES_PORT=5434`
+- `PGADMIN_PORT=5051`
+- `PGADMIN_DEFAULT_EMAIL=admin@local.dev`
+- `PGADMIN_DEFAULT_PASSWORD=admin`
 - `RABBITMQ_AMQP_PORT=5673`
 - `RABBITMQ_MANAGEMENT_PORT=15673`
 
@@ -39,8 +45,20 @@ Current local defaults in `.env`:
 ### 1. Start infrastructure
 
 ```powershell
-docker compose up -d postgres rabbitmq
+docker compose up -d postgres pgadmin rabbitmq
 ```
+
+pgAdmin URL:
+
+- `http://localhost:5051` (or whatever `PGADMIN_PORT` is set to)
+
+pgAdmin connection target for this project:
+
+- Host: `postgres`
+- Port: `5432`
+- Database: `therapist_api`
+- Username: `postgres`
+- Password: `postgres`
 
 ### 2. Start the API
 

@@ -29,6 +29,28 @@ CREATE TABLE IF NOT EXISTS clinical_notes (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+-- Fresh environments do not have legacy phase-10 tables yet.
+-- Create canonical shells first so alignment ALTER statements below are always valid.
+CREATE TABLE IF NOT EXISTS schedule_slots (
+    slot_id UUID PRIMARY KEY,
+    therapist_id UUID NOT NULL,
+    start_datetime TIMESTAMPTZ NOT NULL,
+    end_datetime TIMESTAMPTZ NOT NULL,
+    is_booked BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS appointments (
+    appt_id UUID PRIMARY KEY,
+    profile_id UUID NOT NULL,
+    therapist_id UUID NOT NULL,
+    slot_id UUID NOT NULL,
+    mode VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    meeting_link VARCHAR(1024),
+    start_datetime TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
 -- Align legacy PK column names to domain contract where needed.
 DO $$
 BEGIN
