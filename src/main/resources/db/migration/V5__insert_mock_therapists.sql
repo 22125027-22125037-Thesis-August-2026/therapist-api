@@ -44,3 +44,46 @@ VALUES
 ('550e8400-e29b-41d4-a716-446655440029'::uuid, '550e8400-e29b-41d4-a716-446655440029'::uuid, 'Dr. Rosa Mendez', 'Self-Harm & Suicidality', 'Mexico', 14, 'Crisis management and suicide prevention. Dialectical Behavior Therapy (DBT) specialist.', 4.92, 'https://license.example.com/rosa-mendez', 'Female', true, 'directive', ARRAY['self_harm', 'suicidality', 'depression']),
 ('550e8400-e29b-41d4-a716-446655440030'::uuid, '550e8400-e29b-41d4-a716-446655440030'::uuid, 'Dr. Ethan Whitmore', 'Life Transitions', 'United States', 9, 'Helping clients navigate major life changes and transitions with resilience and clarity.', 4.78, 'https://license.example.com/ethan-whitmore', 'Male', true, 'empathetic', ARRAY['stress', 'anxiety', 'depression'])
 ON CONFLICT DO NOTHING;
+
+-- Insert many weekly templates for seeded therapists.
+-- Generates deterministic UUIDs from therapist/day/time so reruns are safe.
+WITH seeded_therapists AS (
+	SELECT therapist_id
+	FROM therapists
+	WHERE therapist_id::text LIKE '550e8400-e29b-41d4-a716-4466554400%'
+),
+template_windows(day_of_week, start_time, end_time) AS (
+	VALUES
+		('MONDAY', '09:00', '12:00'),
+		('MONDAY', '13:00', '17:00'),
+		('TUESDAY', '09:00', '12:00'),
+		('TUESDAY', '13:00', '17:00'),
+		('WEDNESDAY', '09:00', '12:00'),
+		('WEDNESDAY', '13:00', '17:00'),
+		('THURSDAY', '09:00', '12:00'),
+		('THURSDAY', '13:00', '17:00'),
+		('FRIDAY', '09:00', '12:00'),
+		('FRIDAY', '13:00', '17:00'),
+		('SATURDAY', '09:00', '12:00'),
+		('SUNDAY', '16:00', '18:00')
+)
+INSERT INTO weekly_templates (template_id, therapist_id, day_of_week, start_time, end_time, is_active)
+SELECT
+	(
+		SUBSTRING(h.hash_value, 1, 8) || '-' ||
+		SUBSTRING(h.hash_value, 9, 4) || '-' ||
+		SUBSTRING(h.hash_value, 13, 4) || '-' ||
+		SUBSTRING(h.hash_value, 17, 4) || '-' ||
+		SUBSTRING(h.hash_value, 21, 12)
+	)::uuid AS template_id,
+	st.therapist_id,
+	tw.day_of_week,
+	tw.start_time::time,
+	tw.end_time::time,
+	TRUE
+FROM seeded_therapists st
+CROSS JOIN template_windows tw
+CROSS JOIN LATERAL (
+	SELECT md5(st.therapist_id::text || '|' || tw.day_of_week || '|' || tw.start_time || '|' || tw.end_time) AS hash_value
+) h
+ON CONFLICT DO NOTHING;
