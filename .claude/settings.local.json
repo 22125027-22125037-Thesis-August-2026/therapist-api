@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Remove-Item \"d:\\\\Y4-Sem 2 Thesis\\\\therapist-api\\\\src\\\\main\\\\java\\\\com\\\\booking\\\\therapist_api\\\\service\\\\DailyVideoService.java\" -Force)",
+      "Bash(Remove-Item \"d:\\\\Y4-Sem 2 Thesis\\\\therapist-api\\\\src\\\\main\\\\java\\\\com\\\\booking\\\\therapist_api\\\\config\\\\RestClientConfig.java\" -Force)"
+    ]
+  }
+}

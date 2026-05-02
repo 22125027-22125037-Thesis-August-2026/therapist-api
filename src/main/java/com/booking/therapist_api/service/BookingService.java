@@ -27,15 +27,18 @@ public class BookingService {
     private final ScheduleSlotRepository slotRepository;
     private final AppointmentRepository appointmentRepository;
     private final BookingEventPublisher eventPublisher;
+    private final VideoConsultationProvider videoProvider;
 
     public BookingService(
             ScheduleSlotRepository slotRepository,
             AppointmentRepository appointmentRepository,
-            BookingEventPublisher eventPublisher
+            BookingEventPublisher eventPublisher,
+            VideoConsultationProvider videoProvider
     ) {
         this.slotRepository = slotRepository;
         this.appointmentRepository = appointmentRepository;
         this.eventPublisher = eventPublisher;
+        this.videoProvider = videoProvider;
     }
 
     @Transactional
@@ -48,12 +51,15 @@ public class BookingService {
             throw new SlotAlreadyBookedException("Slot is already booked for id: " + slotId);
         }
 
+        String roomUrl = videoProvider.createVideoRoom();
+
         Appointment appointment = new Appointment();
         appointment.setProfileId(patientId);
         appointment.setTherapist(slot.getTherapist());
         appointment.setSlot(slot);
         appointment.setMode(AppointmentMode.VIDEO);
         appointment.setStartDatetime(slot.getStartDatetime());
+        appointment.setMeetingLink(roomUrl);
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
         eventPublisher.publishAppointmentBooked(savedAppointment.getId());
@@ -81,7 +87,7 @@ public class BookingService {
             appointmentRepository.save(appointment);
         }
 
-        return new VideoJoinResponseDto(appointment.getMeetingLink(), "sdk-token-placeholder");
+        return new VideoJoinResponseDto(appointment.getMeetingLink());
     }
 
     @Transactional(readOnly = true)
