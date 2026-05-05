@@ -48,8 +48,11 @@ public class Appointment {
     @Column(nullable = false)
     private AppointmentStatus status = AppointmentStatus.UPCOMING;
 
-    @Column
-    private String meetingLink;
+    @Column(name = "meeting_number", length = 50)
+    private String meetingNumber;
+
+    @Column(name = "meeting_password", length = 50)
+    private String meetingPassword;
 
     @Column(name = "start_datetime", nullable = false)
     private Instant startDatetime;
@@ -115,12 +118,20 @@ public class Appointment {
         this.status = status;
     }
 
-    public String getMeetingLink() {
-        return meetingLink;
+    public String getMeetingNumber() {
+        return meetingNumber;
     }
 
-    public void setMeetingLink(String meetingLink) {
-        this.meetingLink = meetingLink;
+    public void setMeetingNumber(String meetingNumber) {
+        this.meetingNumber = meetingNumber;
+    }
+
+    public String getMeetingPassword() {
+        return meetingPassword;
+    }
+
+    public void setMeetingPassword(String meetingPassword) {
+        this.meetingPassword = meetingPassword;
     }
 
     public Instant getStartDatetime() {

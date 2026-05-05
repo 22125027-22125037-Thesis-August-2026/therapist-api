@@ -1,9 +1,10 @@
 package com.booking.therapist_api.service;
 
-import com.booking.therapist_api.dto.BookingResponseDto;
 import com.booking.therapist_api.dto.AppointmentHistoryItemResponseDto;
+import com.booking.therapist_api.dto.BookingResponseDto;
 import com.booking.therapist_api.dto.UpcomingAppointmentResponseDto;
 import com.booking.therapist_api.dto.VideoJoinResponseDto;
+import com.booking.therapist_api.dto.VideoRoomDetailsDto;
 import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.entity.ScheduleSlot;
 import com.booking.therapist_api.enums.AppointmentMode;
@@ -51,7 +52,7 @@ public class BookingService {
             throw new SlotAlreadyBookedException("Slot is already booked for id: " + slotId);
         }
 
-        String roomUrl = videoProvider.createVideoRoom();
+        VideoRoomDetailsDto roomDetails = videoProvider.getVideoRoomDetails(slot.getTherapist());
 
         Appointment appointment = new Appointment();
         appointment.setProfileId(patientId);
@@ -59,7 +60,8 @@ public class BookingService {
         appointment.setSlot(slot);
         appointment.setMode(AppointmentMode.VIDEO);
         appointment.setStartDatetime(slot.getStartDatetime());
-        appointment.setMeetingLink(roomUrl);
+        appointment.setMeetingNumber(roomDetails.meetingNumber());
+        appointment.setMeetingPassword(roomDetails.meetingPassword());
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
         eventPublisher.publishAppointmentBooked(savedAppointment.getId());
@@ -87,7 +89,12 @@ public class BookingService {
             appointmentRepository.save(appointment);
         }
 
-        return new VideoJoinResponseDto(appointment.getMeetingLink());
+        VideoRoomDetailsDto roomDetails = videoProvider.getVideoRoomDetails(appointment.getTherapist());
+        return new VideoJoinResponseDto(
+                appointment.getMeetingNumber(),
+                appointment.getMeetingPassword(),
+                roomDetails.sdkJwt()
+        );
     }
 
     @Transactional(readOnly = true)

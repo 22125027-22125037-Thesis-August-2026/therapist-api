@@ -44,3 +44,7 @@ jwt:
   signing-kid: ${JWT_SIGNING_KID:}
   issuer: ${JWT_ISSUER:mhsa-auth}
   audience: ${JWT_AUDIENCE:mhsa-api}
+
+zoom:
+  app-key: ${ZOOM_APP_KEY:}
+  app-secret: ${ZOOM_APP_SECRET:}

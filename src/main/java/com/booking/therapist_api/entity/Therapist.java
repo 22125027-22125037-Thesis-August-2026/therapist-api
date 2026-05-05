@@ -1,11 +1,13 @@
 package com.booking.therapist_api.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
@@ -64,6 +66,9 @@ public class Therapist {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "treated_challenges", columnDefinition = "varchar[]")
     private String[] treatedChallenges;
+
+    @OneToOne(mappedBy = "therapist", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private TherapistZoomCredential zoomCredential;
 
     @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY)
     private Set<WeeklyTemplate> weeklyTemplates = new HashSet<>();
@@ -179,6 +184,14 @@ public class Therapist {
 
     public void setTreatedChallenges(String[] treatedChallenges) {
         this.treatedChallenges = treatedChallenges;
+    }
+
+    public TherapistZoomCredential getZoomCredential() {
+        return zoomCredential;
+    }
+
+    public void setZoomCredential(TherapistZoomCredential zoomCredential) {
+        this.zoomCredential = zoomCredential;
     }
 
     public Set<WeeklyTemplate> getWeeklyTemplates() {
