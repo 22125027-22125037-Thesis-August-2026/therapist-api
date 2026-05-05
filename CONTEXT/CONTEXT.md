@@ -1,6 +1,6 @@
 # Therapist API - Implementation Context
 
-Last updated: 2026-04-15
+Last updated: 2026-05-04
 
 ## 0. Context Maintenance Rule
 Rule: Whenever major changes, new features, or architectural adjustments are made to the codebase, this CONTEXT.md file MUST be updated accordingly to reflect the current implemented reality.
@@ -35,7 +35,7 @@ This file describes the current implemented behavior of `therapist-api` (not a f
 ## 3. Implemented Domain Scope
 This service currently implements Booking-domain capabilities around:
 - therapist availability slot querying
-- appointment booking
+- appointment booking with Zoom Personal Meeting Room credential snapshot
 - appointment video join state transition
 - clinical notes submission
 - reviews and therapist average rating updates
@@ -95,6 +95,22 @@ Referenced by foreign keys:
 - `schedule_slots.therapist_id -> therapists.therapist_id`
 - `appointments.therapist_id -> therapists.therapist_id`
 - `therapist_assignments.therapist_id -> therapists.therapist_id`
+- `therapist_zoom_credentials.therapist_id -> therapists.therapist_id`
+
+#### `therapist_zoom_credentials` (detailed)
+Primary key / Foreign key:
+- `therapist_id` UUID PK + FK -> `therapists.therapist_id` ON DELETE CASCADE
+
+Columns:
+- `zoom_email` VARCHAR(255) NOT NULL UNIQUE
+- `zoom_meeting_number` VARCHAR(50) NOT NULL
+- `zoom_meeting_password` VARCHAR(50) NOT NULL
+- `updated_at` TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+Architecture note:
+- Multi-account Zoom architecture: every therapist has a dedicated static Zoom Basic account (Personal Meeting Room).
+- JPA entity: `TherapistZoomCredential` — uses `@MapsId` shared primary key pattern. Accessed via `Therapist.getZoomCredential()` (lazy).
+- Credentials are **snapshot-copied** onto `Appointment` at booking time for historical immutability.
 
 #### `profiles_matching_preferences` (logical) / `profiles_preferences` (current physical table)
 Note:
@@ -141,7 +157,8 @@ Core columns:
 - `slot_id` UUID NOT NULL UNIQUE (FK -> `schedule_slots.slot_id`)
 - `mode` VARCHAR(50) NOT NULL
 - `status` VARCHAR(50) NOT NULL
-- `meeting_link` VARCHAR(1024)
+- `meeting_number` VARCHAR(50) (snapshot of therapist Zoom meeting number at booking time)
+- `meeting_password` VARCHAR(50) (snapshot of therapist Zoom meeting password at booking time)
 - `start_datetime` TIMESTAMPTZ NOT NULL
 - `created_at` TIMESTAMPTZ NOT NULL
 
@@ -156,6 +173,7 @@ Core columns:
 - `is_booked` BOOLEAN NOT NULL DEFAULT FALSE
 
 ### 4.2 Key Relationships
+- One therapist -> zero/one zoom credential (`therapist_zoom_credentials`).
 - One therapist -> many weekly templates.
 - One therapist -> many schedule slots.
 - One therapist -> many appointments.
@@ -184,6 +202,8 @@ Contract:
 ### 5.1 Booking
 - `POST /api/v1/bookings` requires authenticated principal UUID from JWT (`profileId` claim, fallback `sub`).
 - Booking loads slot, atomically marks it booked, creates appointment, and publishes `appointment.booked` event.
+- At booking time the therapist's current Zoom credentials (`meeting_number`, `meeting_password`) are **snapshot-copied** onto the `Appointment` row. Future credential changes do not affect past appointments.
+- If the booked therapist has no entry in `therapist_zoom_credentials`, booking throws `ResourceNotFoundException` (404).
 - Default appointment mode used by booking flow: `VIDEO`.
 - New appointments start with status `UPCOMING`.
 
@@ -191,7 +211,7 @@ Contract:
 - `GET /api/v1/bookings/{appointmentId}/join`:
   - rejects join if current time is earlier than `start_datetime - 10 minutes` (`403`).
   - transitions `UPCOMING` -> `IN_PROGRESS` on successful join.
-  - returns `meetingUrl` and currently mocked `sdkToken`.
+  - returns `VideoJoinResponseDto(meetingNumber, password)` — the values snapshotted from the therapist's Zoom credentials at booking time.
 
 ### 5.3 Clinical Notes
 - `POST /api/v1/notes` is therapist-only (`ROLE_THERAPIST`).
@@ -280,13 +300,20 @@ Current implementation status in this repository:
 - Stateless JWT access-token handling is implemented.
 - Redis-backed refresh-token lifecycle is not yet implemented in this service.
 
-## 7.2 WebRTC Video Flow Intent (Required Architecture)
+## 7.2 Video Provider Architecture (Current Implementation)
+- Video provider is abstracted behind the `VideoConsultationProvider` interface (DIP).
+- Current implementation: `ZoomVideoServiceImpl` — reads static Zoom Personal Meeting Room credentials from `therapist_zoom_credentials` via `Therapist.getZoomCredential()`.
+- Multi-account Zoom architecture: each therapist has a dedicated Zoom Basic account to avoid concurrent meeting limits.
+- The interface method signature: `VideoRoomDetailsDto getVideoRoomDetails(Therapist therapist)`.
+- Swapping providers requires only a new `@Service` implementing `VideoConsultationProvider`; `BookingService` is unaffected.
+
+### WebRTC Video Flow Intent (Required Architecture)
 For video sessions, the backend acts only as an authorization gatekeeper:
 - validates appointment state/time-window policies
-- maps allowed session limits into provider SDK token claims
+- returns Zoom meeting credentials to the client SDK
 
 Media path intent:
-- actual audio/video is client-to-client P2P via WebRTC
+- actual audio/video is handled by the Zoom SDK on the client
 - backend does not proxy media streams
 
 ## 8. Validation and Error Contracts
@@ -349,7 +376,7 @@ These items were described in older planning docs but are not currently implemen
 - no template create/update endpoint (for example `POST /therapists/{id}/templates`)
 - no appointment list endpoint (for example `GET /appointments`)
 - no appointment status patch endpoint (for example `PATCH /status`)
-- join endpoint does not yet mint a real provider SDK token (returns placeholder token)
+- no booking lead-time enforcement yet wired to the new Zoom credential check beyond the null guard
 
 ## 12. Strict Business Policies (Required Constraints)
 The following are required system constraints even where enforcement is still pending in code:
