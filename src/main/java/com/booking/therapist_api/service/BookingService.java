@@ -89,12 +89,10 @@ public class BookingService {
             appointmentRepository.save(appointment);
         }
 
+        String resolvedRoom = appointment.getMeetingNumber();
+
         VideoRoomDetailsDto roomDetails = videoProvider.getVideoRoomDetails(appointment.getTherapist());
-        return new VideoJoinResponseDto(
-                appointment.getMeetingNumber(),
-                appointment.getMeetingPassword(),
-                roomDetails.sdkJwt()
-        );
+        return new VideoJoinResponseDto(resolvedRoom, appointment.getMeetingPassword(), roomDetails.sdkJwt());
     }
 
     @Transactional(readOnly = true)

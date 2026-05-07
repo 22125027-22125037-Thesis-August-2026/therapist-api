@@ -7,6 +7,7 @@ import com.booking.therapist_api.exception.ResourceNotFoundException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 
 @Service
+@ConditionalOnProperty(name = "video.provider", havingValue = "zoom", matchIfMissing = true)
 public class ZoomVideoServiceImpl implements VideoConsultationProvider {
 
     @Value("${zoom.app-key}")

@@ -1,6 +1,6 @@
 # Therapist API - Implementation Context
 
-Last updated: 2026-05-04
+Last updated: 2026-05-07
 
 ## 0. Context Maintenance Rule
 Rule: Whenever major changes, new features, or architectural adjustments are made to the codebase, this CONTEXT.md file MUST be updated accordingly to reflect the current implemented reality.
@@ -31,11 +31,12 @@ This file describes the current implemented behavior of `therapist-api` (not a f
 - Flyway enabled (`baseline-on-migrate: true`, `baseline-version: 0`).
 - JWT verification uses RSA public key (`JWT_PUBLIC_KEY` / `jwt.public-key`).
 - JWT validation checks `iss`, `aud`, and optional header `kid` from config/env.
+- Video provider defaults to `zoom` via `video.provider` / `VIDEO_PROVIDER`.
 
 ## 3. Implemented Domain Scope
 This service currently implements Booking-domain capabilities around:
 - therapist availability slot querying
-- appointment booking with Zoom Personal Meeting Room credential snapshot
+- appointment booking with provider-specific video room snapshot (Zoom default; Jitsi optional)
 - appointment video join state transition
 - clinical notes submission
 - reviews and therapist average rating updates
@@ -202,8 +203,8 @@ Contract:
 ### 5.1 Booking
 - `POST /api/v1/bookings` requires authenticated principal UUID from JWT (`profileId` claim, fallback `sub`).
 - Booking loads slot, atomically marks it booked, creates appointment, and publishes `appointment.booked` event.
-- At booking time the therapist's current Zoom credentials (`meeting_number`, `meeting_password`) are **snapshot-copied** onto the `Appointment` row. Future credential changes do not affect past appointments.
-- If the booked therapist has no entry in `therapist_zoom_credentials`, booking throws `ResourceNotFoundException` (404).
+- At booking time, provider-specific room details are **snapshot-copied** onto the `Appointment` row.
+- If `video.provider=zoom` and the booked therapist has no entry in `therapist_zoom_credentials`, booking throws `ResourceNotFoundException` (404).
 - Default appointment mode used by booking flow: `VIDEO`.
 - New appointments start with status `UPCOMING`.
 
@@ -211,7 +212,7 @@ Contract:
 - `GET /api/v1/bookings/{appointmentId}/join`:
   - rejects join if current time is earlier than `start_datetime - 10 minutes` (`403`).
   - transitions `UPCOMING` -> `IN_PROGRESS` on successful join.
-  - returns `VideoJoinResponseDto(meetingNumber, password)` — the values snapshotted from the therapist's Zoom credentials at booking time.
+  - returns `VideoJoinResponseDto(meetingNumber, password, sdkJwt)` — meeting details are from the appointment snapshot, while `sdkJwt` is resolved from the active video provider at join time.
 
 ### 5.3 Clinical Notes
 - `POST /api/v1/notes` is therapist-only (`ROLE_THERAPIST`).
@@ -302,7 +303,9 @@ Current implementation status in this repository:
 
 ## 7.2 Video Provider Architecture (Current Implementation)
 - Video provider is abstracted behind the `VideoConsultationProvider` interface (DIP).
-- Current implementation: `ZoomVideoServiceImpl` — reads static Zoom Personal Meeting Room credentials from `therapist_zoom_credentials` via `Therapist.getZoomCredential()`.
+- Active provider is selected by `video.provider` (env `VIDEO_PROVIDER`), defaulting to `zoom`.
+- Zoom implementation: `ZoomVideoServiceImpl` — reads static Zoom Personal Meeting Room credentials from `therapist_zoom_credentials` via `Therapist.getZoomCredential()` and generates a Zoom SDK JWT.
+- Jitsi implementation: `JitsiVideoServiceImpl` — returns a random UUID room name with no password or SDK JWT.
 - Multi-account Zoom architecture: each therapist has a dedicated Zoom Basic account to avoid concurrent meeting limits.
 - The interface method signature: `VideoRoomDetailsDto getVideoRoomDetails(Therapist therapist)`.
 - Swapping providers requires only a new `@Service` implementing `VideoConsultationProvider`; `BookingService` is unaffected.

@@ -40,3 +40,4 @@ What the Repository Can Do.md
 # JVM crash artifacts
 hs_err_pid*.log
 replay_pid*.log
+.env
