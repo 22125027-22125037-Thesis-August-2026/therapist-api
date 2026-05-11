@@ -30,6 +30,19 @@ services:
     networks:
       - backend
 
+  api:
+    build: .
+    ports:
+      - "${SERVER_PORT:-8082}:${SERVER_PORT:-8082}"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - backend
+    restart: unless-stopped
+
 networks:
   backend:
     driver: bridge
