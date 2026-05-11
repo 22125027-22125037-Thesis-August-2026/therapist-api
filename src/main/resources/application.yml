@@ -6,9 +6,9 @@ spring:
     import: optional:file:.env[.properties]
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:${POSTGRES_PORT:5433}}/${DB_NAME:${POSTGRES_DB:therapist_api}}
+    username: ${DB_USERNAME:${POSTGRES_USER:postgres}}
+    password: ${DB_PASSWORD:${POSTGRES_PASSWORD:postgres}}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -21,9 +21,10 @@ spring:
     baseline-version: 0
 
   rabbitmq:
-    addresses: ${RABBITMQ_URL}
-    ssl:
-      enabled: true
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:${RABBITMQ_AMQP_PORT:5672}}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -39,14 +40,14 @@ logging:
     org.springframework.security: INFO
 
 jwt:
-  public-key: ${JWT_PUBLIC_KEY}
-  signing-kid: ${JWT_SIGNING_KID}
-  issuer: ${JWT_ISSUER}
-  audience: ${JWT_AUDIENCE}
+  public-key: ${JWT_PUBLIC_KEY:}
+  signing-kid: ${JWT_SIGNING_KID:}
+  issuer: ${JWT_ISSUER:mhsa-auth}
+  audience: ${JWT_AUDIENCE:mhsa-api}
 
 video:
-  provider: ${VIDEO_PROVIDER}
+  provider: ${VIDEO_PROVIDER:zoom}
 
 zoom:
-  app-key: ${ZOOM_APP_KEY}
-  app-secret: ${ZOOM_APP_SECRET}
+  app-key: ${ZOOM_APP_KEY:}
+  app-secret: ${ZOOM_APP_SECRET:}
