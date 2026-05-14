@@ -41,3 +41,4 @@ What the Repository Can Do.md
 hs_err_pid*.log
 replay_pid*.log
 .env
+.env
