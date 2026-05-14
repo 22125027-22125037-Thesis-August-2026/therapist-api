@@ -215,7 +215,8 @@ Contract:
   - returns `VideoJoinResponseDto(meetingNumber, password, sdkJwt)` — meeting details are from the appointment snapshot, while `sdkJwt` is resolved from the active video provider at join time.
 
 ### 5.3 Clinical Notes
-- `POST /api/v1/notes` is therapist-only (`ROLE_THERAPIST`).
+- `POST /api/v1/notes` is therapist/admin-only and appointment-scoped.
+- Only the assigned therapist or an admin can submit a note.
 - Appointment must be `IN_PROGRESS`.
 - Only one note per appointment.
 - On success, note is saved and appointment transitions `IN_PROGRESS` -> `COMPLETED`.

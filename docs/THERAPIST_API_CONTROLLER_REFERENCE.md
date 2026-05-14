@@ -75,7 +75,7 @@ Known titles:
 | GET | `/api/v1/profiles/{profileId}/appointments/history` | Yes | `self` or `ROLE_ADMIN` | Get completed/cancelled appointment history for a profile |
 | GET | `/api/v1/therapists/{id}` | Yes | Any authenticated user | Get therapist detail profile payload |
 | GET | `/api/v1/therapists/{id}/slots` | Yes | Any authenticated user | Get pageable future available slots |
-| POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST` | Submit a clinical note |
+| POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST`, `ROLE_ADMIN` | Submit a clinical note |
 | GET | `/api/v1/notes/appointments/{appointmentId}` | Yes | `ROLE_PATIENT`, `ROLE_THERAPIST`, `ROLE_ADMIN` | Get a clinical note for an appointment |
 | POST | `/api/v1/reviews` | Yes | `ROLE_PATIENT` | Submit a therapist review |
 | POST | `/api/v1/matching/preferences` | Yes | Any authenticated user | Save profile matching preferences |
@@ -337,8 +337,8 @@ Possible errors:
 
 - Method/Path: `POST /api/v1/notes`
 - Auth: Required
-- Role: `ROLE_THERAPIST`
-- Description: Creates one clinical note for an in-progress appointment and marks appointment as `COMPLETED`.
+- Role: `ROLE_THERAPIST`, `ROLE_ADMIN`
+- Description: Creates one clinical note for an in-progress appointment and marks appointment as `COMPLETED`. Only the assigned therapist or an admin can submit a note.
 
 Request body:
 
@@ -365,7 +365,7 @@ Response `201`:
 Possible errors:
 
 - `400` validation failure
-- `403` forbidden role
+- `403` appointment does not belong to caller
 - `404` appointment not found
 - `409` appointment not `IN_PROGRESS`
 - `409` note already exists for appointment

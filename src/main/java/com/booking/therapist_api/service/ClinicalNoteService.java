@@ -7,7 +7,6 @@ import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.entity.ClinicalNote;
 import com.booking.therapist_api.enums.AppointmentStatus;
 import com.booking.therapist_api.exception.ClinicalNoteAlreadyExistsException;
-import com.booking.therapist_api.exception.ClinicalNoteNotAllowedException;
 import com.booking.therapist_api.exception.InvalidAppointmentStateException;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.AppointmentRepository;
@@ -65,27 +64,11 @@ public class ClinicalNoteService {
         );
     }
 
-        @Transactional(readOnly = true)
-        public ClinicalNoteDetailResponseDto getNoteForAppointment(
-            UUID appointmentId,
-            UUID requesterId,
-            boolean isTherapist,
-            boolean isAdmin
-        ) {
+    @Transactional(readOnly = true)
+    public ClinicalNoteDetailResponseDto getNoteForAppointment(UUID appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Appointment not found for id: " + appointmentId));
-
-        if (!isAdmin) {
-            boolean isOwner = isTherapist
-                ? appointment.getTherapist().getTherapistId().equals(requesterId)
-                : appointment.getProfileId().equals(requesterId);
-
-            if (!isOwner) {
-            throw new ClinicalNoteNotAllowedException(
-                "You can only access clinical notes for your own appointments.");
-            }
-        }
 
         ClinicalNote note = clinicalNoteRepository.findByAppointment_Id(appointmentId)
             .orElseThrow(() -> new ResourceNotFoundException(
@@ -99,5 +82,5 @@ public class ClinicalNoteService {
             note.getRecommendations(),
             note.getCreatedAt()
         );
-        }
+    }
 }

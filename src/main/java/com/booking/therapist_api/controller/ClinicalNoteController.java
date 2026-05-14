@@ -7,7 +7,6 @@ import com.booking.therapist_api.service.ClinicalNoteService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +27,7 @@ public class ClinicalNoteController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_THERAPIST')")
+    @PreAuthorize("@clinicalNoteAuthorization.canSubmit(authentication, #request.appointmentId)")
     public ResponseEntity<ClinicalNoteResponseDto> submitClinicalNote(
             @Valid @RequestBody ClinicalNoteRequestDto request
     ) {
@@ -37,23 +36,11 @@ public class ClinicalNoteController {
     }
 
     @GetMapping("/appointments/{appointmentId}")
-    @PreAuthorize("hasAnyRole('ROLE_PATIENT','ROLE_THERAPIST','ROLE_ADMIN')")
+    @PreAuthorize("@clinicalNoteAuthorization.canView(authentication, #appointmentId)")
     public ResponseEntity<ClinicalNoteDetailResponseDto> getClinicalNoteByAppointmentId(
-        @PathVariable UUID appointmentId,
-        Authentication authentication
+        @PathVariable UUID appointmentId
     ) {
-    UUID requesterId = UUID.fromString(authentication.getName());
-    boolean isTherapist = authentication.getAuthorities().stream()
-        .anyMatch(authority -> "ROLE_THERAPIST".equals(authority.getAuthority()));
-    boolean isAdmin = authentication.getAuthorities().stream()
-        .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
-
-    ClinicalNoteDetailResponseDto response = clinicalNoteService.getNoteForAppointment(
-        appointmentId,
-        requesterId,
-        isTherapist,
-        isAdmin
-    );
-    return ResponseEntity.ok(response);
+        ClinicalNoteDetailResponseDto response = clinicalNoteService.getNoteForAppointment(appointmentId);
+        return ResponseEntity.ok(response);
     }
 }
