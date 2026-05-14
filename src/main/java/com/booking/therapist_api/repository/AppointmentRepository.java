@@ -17,14 +17,27 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 	@Query("SELECT COUNT(DISTINCT a.profileId) FROM Appointment a WHERE a.therapist.therapistId = :therapistId")
 	long countDistinctPatientsByTherapistId(@Param("therapistId") UUID therapistId);
 
-	Optional<Appointment> findFirstByProfileIdAndStartDatetimeAfterAndStatusOrderByStartDatetimeAsc(
-			UUID profileId,
-			Instant startDatetime,
-			AppointmentStatus status
+	@Query("""
+			SELECT a
+			FROM Appointment a
+			WHERE a.profileId = :profileId
+			  AND a.status IN :statuses
+			  AND a.startDatetime >= :recentCutoff
+			ORDER BY a.startDatetime ASC
+		""")
+	Optional<Appointment> findClosestUpcomingOrRecentInProgress(
+			@Param("profileId") UUID profileId,
+			@Param("statuses") Collection<AppointmentStatus> statuses,
+			@Param("recentCutoff") Instant recentCutoff
 	);
 
 	List<Appointment> findByProfileIdAndStatusInOrderByStartDatetimeDesc(
 			UUID profileId,
 			Collection<AppointmentStatus> statuses
+	);
+
+	List<Appointment> findByProfileIdAndStatusAndReviewIsNullOrderByStartDatetimeDesc(
+			UUID profileId,
+			AppointmentStatus status
 	);
 }

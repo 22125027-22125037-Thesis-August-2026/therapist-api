@@ -60,4 +60,12 @@ public class AppointmentController {
     ) {
         return ResponseEntity.ok(bookingService.getCompletedAndCancelledAppointments(profileId));
     }
+
+    @GetMapping("/profiles/{profileId}/appointments/unreviewed")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    public ResponseEntity<List<AppointmentHistoryItemResponseDto>> getCompletedUnreviewedAppointments(
+            @PathVariable UUID profileId
+    ) {
+        return ResponseEntity.ok(bookingService.getCompletedUnreviewedAppointments(profileId));
+    }
 }

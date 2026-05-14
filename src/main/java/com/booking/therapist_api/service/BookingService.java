@@ -97,14 +97,17 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public UpcomingAppointmentResponseDto getClosestUpcomingAppointment(UUID profileId) {
+        Instant now = Instant.now();
+        Instant recentCutoff = now.minus(30, ChronoUnit.MINUTES);
+
         Appointment appointment = appointmentRepository
-                .findFirstByProfileIdAndStartDatetimeAfterAndStatusOrderByStartDatetimeAsc(
-                        profileId,
-                        Instant.now(),
-                        AppointmentStatus.UPCOMING
-                )
+            .findClosestUpcomingOrRecentInProgress(
+                profileId,
+                List.of(AppointmentStatus.UPCOMING, AppointmentStatus.IN_PROGRESS),
+                recentCutoff
+            )
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No upcoming appointment found for profile id: " + profileId));
+                "No upcoming or ongoing appointment found for profile id: " + profileId));
 
         return new UpcomingAppointmentResponseDto(
                 appointment.getId(),
@@ -137,4 +140,27 @@ public class BookingService {
                 ))
                 .toList();
     }
+
+                @Transactional(readOnly = true)
+                public List<AppointmentHistoryItemResponseDto> getCompletedUnreviewedAppointments(UUID profileId) {
+                return appointmentRepository
+                    .findByProfileIdAndStatusAndReviewIsNullOrderByStartDatetimeDesc(
+                        profileId,
+                        AppointmentStatus.COMPLETED
+                    )
+                    .stream()
+                    .map(appointment -> new AppointmentHistoryItemResponseDto(
+                        appointment.getId(),
+                        appointment.getProfileId(),
+                        appointment.getTherapist().getTherapistId(),
+                        appointment.getTherapist().getFullName(),
+                        appointment.getTherapist().getSpecialization(),
+                        appointment.getTherapist().getCountry(),
+                        appointment.getSlot().getId(),
+                        appointment.getMode().name(),
+                        appointment.getStatus().name(),
+                        appointment.getStartDatetime()
+                    ))
+                    .toList();
+                }
 }
