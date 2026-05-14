@@ -3,6 +3,7 @@ package com.booking.therapist_api.advice;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.exception.MeetingNotOpenException;
 import com.booking.therapist_api.exception.ClinicalNoteAlreadyExistsException;
+import com.booking.therapist_api.exception.ClinicalNoteNotAllowedException;
 import com.booking.therapist_api.exception.InvalidAppointmentStateException;
 import com.booking.therapist_api.exception.ReviewAlreadyExistsException;
 import com.booking.therapist_api.exception.ReviewNotAllowedException;
@@ -56,6 +57,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleClinicalNoteAlreadyExistsException(ClinicalNoteAlreadyExistsException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problemDetail.setTitle("Clinical Note Conflict");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(ClinicalNoteNotAllowedException.class)
+    public ProblemDetail handleClinicalNoteNotAllowedException(ClinicalNoteNotAllowedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problemDetail.setTitle("Clinical Note Forbidden");
         return problemDetail;
     }
 
