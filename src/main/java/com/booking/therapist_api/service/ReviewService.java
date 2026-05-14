@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -48,11 +49,22 @@ public class ReviewService {
                     "You can only review your own completed appointment.");
         }
 
-        if (appointment.getStatus() != AppointmentStatus.COMPLETED) {
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED
+                || appointment.getStatus() == AppointmentStatus.UPCOMING) {
             throw new InvalidAppointmentStateException(
-                    "Review can only be submitted when appointment is COMPLETED. Current status: "
-                            + appointment.getStatus().name());
+                    "Review cannot be submitted for an UPCOMING or CANCELLED appointment.");
         }
+
+        Instant reviewEligibleAt = appointment.getStartDatetime().plusSeconds(60);
+                if (Instant.now().isBefore(reviewEligibleAt)) {
+            throw new InvalidAppointmentStateException(
+                    "Review can only be submitted at least 1 minute after the appointment start time.");
+        }
+
+                if (appointment.getStatus() == AppointmentStatus.IN_PROGRESS) {
+                        appointment.setStatus(AppointmentStatus.COMPLETED);
+                        appointmentRepository.save(appointment);
+                }
 
         if (reviewRepository.existsByAppointment_Id(appointment.getId())) {
             throw new ReviewAlreadyExistsException(
