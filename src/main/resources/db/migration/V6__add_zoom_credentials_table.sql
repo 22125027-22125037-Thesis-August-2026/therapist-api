@@ -37,6 +37,6 @@ ALTER TABLE appointments
 -- Step 4: Seed Zoom credentials for the first two mock therapists.
 INSERT INTO therapist_zoom_credentials (therapist_id, zoom_email, zoom_meeting_number, zoom_meeting_password)
 VALUES
-    ('550e8400-e29b-41d4-a716-446655440001'::uuid, 'brukeduong@gmail.com',      '7075120473', 'N212sP'),
-    ('550e8400-e29b-41d4-a716-446655440002'::uuid, 'khiemduong0938@gmail.com',  '2582871621', 'vc7SPn')
+    ('aa84aebd-0ec3-38c6-fc8e-8edaf08ba7dc'::uuid, 'brukeduong@gmail.com',      '7075120473', 'N212sP'),
+    ('83c9dae2-a937-6866-ec4f-373a8517173e'::uuid, 'khiemduong0938@gmail.com',  '2582871621', 'vc7SPn')
 ON CONFLICT DO NOTHING;
