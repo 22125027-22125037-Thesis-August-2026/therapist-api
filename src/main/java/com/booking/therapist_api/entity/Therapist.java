@@ -28,10 +28,6 @@ public class Therapist {
     @Column(name = "therapist_id", nullable = false, updatable = false)
     private UUID therapistId;
 
-    // Auth domain reference must stay as plain UUID (cross-microservice).
-    @Column(name = "account_id", nullable = false)
-    private UUID accountId;
-
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
@@ -88,14 +84,6 @@ public class Therapist {
 
     public void setTherapistId(UUID therapistId) {
         this.therapistId = therapistId;
-    }
-
-    public UUID getAccountId() {
-        return accountId;
-    }
-
-    public void setAccountId(UUID accountId) {
-        this.accountId = accountId;
     }
 
     public String getFullName() {
