@@ -36,24 +36,24 @@ public class ClinicalNoteController {
         return ResponseEntity.status(201).body(response);
     }
 
-        @GetMapping("/appointments/{appointmentId}")
-        @PreAuthorize("hasAnyRole('ROLE_PATIENT','ROLE_THERAPIST','ROLE_ADMIN')")
-        public ResponseEntity<ClinicalNoteDetailResponseDto> getClinicalNoteByAppointmentId(
-            @PathVariable UUID appointmentId,
-            Authentication authentication
-        ) {
-        UUID requesterId = UUID.fromString(authentication.getName());
-        boolean isTherapist = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_THERAPIST".equals(authority.getAuthority()));
-        boolean isAdmin = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    @GetMapping("/appointments/{appointmentId}")
+    @PreAuthorize("hasAnyRole('ROLE_PATIENT','ROLE_THERAPIST','ROLE_ADMIN')")
+    public ResponseEntity<ClinicalNoteDetailResponseDto> getClinicalNoteByAppointmentId(
+        @PathVariable UUID appointmentId,
+        Authentication authentication
+    ) {
+    UUID requesterId = UUID.fromString(authentication.getName());
+    boolean isTherapist = authentication.getAuthorities().stream()
+        .anyMatch(authority -> "ROLE_THERAPIST".equals(authority.getAuthority()));
+    boolean isAdmin = authentication.getAuthorities().stream()
+        .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
 
-        ClinicalNoteDetailResponseDto response = clinicalNoteService.getNoteForAppointment(
-            appointmentId,
-            requesterId,
-            isTherapist,
-            isAdmin
-        );
-        return ResponseEntity.ok(response);
-        }
+    ClinicalNoteDetailResponseDto response = clinicalNoteService.getNoteForAppointment(
+        appointmentId,
+        requesterId,
+        isTherapist,
+        isAdmin
+    );
+    return ResponseEntity.ok(response);
+    }
 }
