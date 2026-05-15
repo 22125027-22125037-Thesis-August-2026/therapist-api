@@ -23,7 +23,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TherapistMatchingService {
@@ -59,7 +61,7 @@ public class TherapistMatchingService {
 
         preferenceRepository.save(preference);
 
-        List<Therapist> matchedTherapists = findMatchingTherapists(preference);
+        List<Therapist> matchedTherapists = findMatchingTherapists(preference, profileId);
         if (!matchedTherapists.isEmpty()) {
             upsertActiveAssignment(profileId, matchedTherapists.get(0));
         }
@@ -92,14 +94,14 @@ public class TherapistMatchingService {
                         "Matching preference not found for profile id: " + profileId));
 
         String[] requestedReasons = preference.getReasons() == null ? new String[0] : preference.getReasons();
-        List<Therapist> therapists = findMatchingTherapists(preference);
+        List<Therapist> therapists = findMatchingTherapists(preference, profileId);
 
         return therapists.stream()
             .map(therapist -> toMatchResponse(therapist, requestedReasons))
             .toList();
         }
 
-        private List<Therapist> findMatchingTherapists(ProfileMatchingPreference preference) {
+        private List<Therapist> findMatchingTherapists(ProfileMatchingPreference preference, UUID profileId) {
         String[] requestedReasons = preference.getReasons() == null ? new String[0] : preference.getReasons();
         boolean isLgbtqPriority = Boolean.TRUE.equals(preference.getIsLgbtqPriority());
         String communicationStyle = normalizeCommunicationStyle(preference.getCommunicationStyle());
@@ -119,7 +121,21 @@ public class TherapistMatchingService {
             );
         }
 
-        return therapists;
+        Set<UUID> previouslyAssignedTherapistIds = assignmentRepository.findAllByProfileId(profileId)
+                .stream()
+                .map(assignment -> assignment.getTherapist().getTherapistId())
+                .collect(Collectors.toSet());
+
+        if (previouslyAssignedTherapistIds.isEmpty()) {
+            return therapists;
+        }
+
+        List<Therapist> freshTherapists = therapists.stream()
+                .filter(therapist -> !previouslyAssignedTherapistIds.contains(therapist.getTherapistId()))
+                .toList();
+
+        // Fallback: if no brand-new therapist remains, return the best match regardless of past assignment.
+        return freshTherapists.isEmpty() ? therapists : freshTherapists;
         }
 
     @Transactional

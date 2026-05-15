@@ -75,6 +75,7 @@ Known titles:
 | GET | `/api/v1/profiles/{profileId}/appointments/history` | Yes | `self` or `ROLE_ADMIN` | Get completed/cancelled appointment history for a profile |
 | GET | `/api/v1/therapists/{id}` | Yes | Any authenticated user | Get therapist detail profile payload |
 | GET | `/api/v1/therapists/{id}/slots` | Yes | Any authenticated user | Get pageable future available slots |
+| GET | `/api/v1/therapists/{id}/reviews` | Yes | Any authenticated user | Get all reviews for a therapist (newest first) |
 | POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST`, `ROLE_ADMIN` | Submit a clinical note |
 | GET | `/api/v1/notes/appointments/{appointmentId}` | Yes | `ROLE_PATIENT`, `ROLE_THERAPIST`, `ROLE_ADMIN` | Get a clinical note for an appointment |
 | POST | `/api/v1/reviews` | Yes | `ROLE_PATIENT` | Submit a therapist review |
@@ -333,7 +334,50 @@ Possible errors:
 - `404` therapist not found
 - `401` unauthenticated
 
-### 7. Submit Clinical Note
+### 7. Get Therapist Reviews
+
+- Method/Path: `GET /api/v1/therapists/{id}/reviews`
+- Auth: Required
+- Description: Returns all reviews for a therapist (across all of their appointments), ordered by `createdAt` descending. Reviewer identity is anonymized.
+
+Path params:
+
+- `id` (UUID therapist ID)
+
+Response `200` (example):
+
+```json
+[
+  {
+    "id": "f4a1ad89-b6df-4867-9fe8-0d01fd3265f5",
+    "reviewerName": "Anonymous Patient",
+    "reviewerAvatarUrl": null,
+    "rating": 5,
+    "comment": "Very helpful session",
+    "createdAt": "2026-04-15T07:40:03.011Z"
+  },
+  {
+    "id": "8c1ed9b3-7c5f-4e6f-9a01-2b6f4eaa0bf2",
+    "reviewerName": "Anonymous Patient",
+    "reviewerAvatarUrl": null,
+    "rating": 4,
+    "comment": "Great listener and very patient.",
+    "createdAt": "2026-04-10T09:12:44.512Z"
+  }
+]
+```
+
+Notes:
+
+- Returns an empty array (not `404`) when the therapist exists but has no reviews.
+- Reviewer identity fields are anonymized (`reviewerName` defaults to `Anonymous Patient`, `reviewerAvatarUrl` is `null`).
+
+Possible errors:
+
+- `404` therapist not found
+- `401` unauthenticated
+
+### 8. Submit Clinical Note
 
 - Method/Path: `POST /api/v1/notes`
 - Auth: Required
@@ -371,7 +415,7 @@ Possible errors:
 - `409` note already exists for appointment
 - `401` unauthenticated
 
-### 8. Get Clinical Note By Appointment
+### 9. Get Clinical Note By Appointment
 
 - Method/Path: `GET /api/v1/notes/appointments/{appointmentId}`
 - Auth: Required
@@ -402,7 +446,7 @@ Possible errors:
 - `404` clinical note not found for appointment
 - `401` unauthenticated
 
-### 9. Submit Review
+### 10. Submit Review
 
 - Method/Path: `POST /api/v1/reviews`
 - Auth: Required
@@ -443,7 +487,7 @@ Possible errors:
 - `409` review already exists
 - `401` unauthenticated
 
-### 10. Save Matching Preferences
+### 11. Save Matching Preferences
 
 - Method/Path: `POST /api/v1/matching/preferences`
 - Auth: Required
@@ -482,7 +526,7 @@ Possible errors:
 - `400` validation failure
 - `401` unauthenticated
 
-### 11. Find Matching Therapists
+### 12. Find Matching Therapists
 
 - Method/Path: `GET /api/v1/matching/therapists`
 - Auth: Required
@@ -508,7 +552,7 @@ Possible errors:
 - `404` matching preferences not found for caller
 - `401` unauthenticated
 
-### 12. Assign Therapist
+### 13. Assign Therapist
 
 - Method/Path: `POST /api/v1/matching/assign/{therapistId}`
 - Auth: Required
@@ -527,7 +571,7 @@ Possible errors:
 - `404` therapist not found
 - `401` unauthenticated
 
-### 13. Get Active Assigned Therapist
+### 14. Get Active Assigned Therapist
 
 - Method/Path: `GET /api/v1/profiles/{profileId}/assigned-therapist`
 - Auth: Required
@@ -578,7 +622,7 @@ Response `403` (example):
 }
 ```
 
-### 14. Trigger Slot Generation (Test Endpoint)
+### 15. Trigger Slot Generation (Test Endpoint)
 
 - Method/Path: `POST /api/v1/test/trigger-generation`
 - Auth: Not required
@@ -592,7 +636,7 @@ Response `200`:
 }
 ```
 
-### 15. Trigger Slot Cleanup (Test Endpoint)
+### 16. Trigger Slot Cleanup (Test Endpoint)
 
 - Method/Path: `POST /api/v1/test/trigger-cleanup`
 - Auth: Not required
@@ -652,4 +696,11 @@ curl -X POST "http://localhost:8082/api/v1/reviews" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"appointmentId":"76d7800a-ae23-4f65-9d3d-c9536e2bdf5a","rating":5,"comment":"Very helpful session"}'
+```
+
+Get therapist reviews:
+
+```bash
+curl "http://localhost:8082/api/v1/therapists/<therapist-id>/reviews" \
+  -H "Authorization: Bearer <token>"
 ```

@@ -2,6 +2,7 @@ package com.booking.therapist_api.service;
 
 import com.booking.therapist_api.dto.ScheduleSlotResponseDto;
 import com.booking.therapist_api.dto.TherapistDetailResponseDto;
+import com.booking.therapist_api.dto.TherapistReviewResponseDto;
 import com.booking.therapist_api.entity.ScheduleSlot;
 import com.booking.therapist_api.entity.Therapist;
 import com.booking.therapist_api.entity.WeeklyTemplate;
@@ -90,6 +91,26 @@ public class TherapistService {
                 workingHours,
                 reviews
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<TherapistReviewResponseDto> getTherapistReviews(UUID therapistId) {
+        if (!therapistRepository.existsById(therapistId)) {
+            throw new ResourceNotFoundException("Therapist not found for id: " + therapistId);
+        }
+
+        return reviewRepository
+                .findByAppointment_Therapist_TherapistIdOrderByCreatedAtDesc(therapistId)
+                .stream()
+                .map(review -> new TherapistReviewResponseDto(
+                        review.getReviewId().toString(),
+                        "Anonymous Patient",
+                        null,
+                        review.getRating(),
+                        review.getComment(),
+                        review.getCreatedAt() == null ? null : review.getCreatedAt().toString()
+                ))
+                .toList();
     }
 
     @Transactional(readOnly = true)

@@ -106,6 +106,70 @@ class TherapistMatchingServiceTest {
     }
 
     @Test
+    void findMatches_excludesPreviouslyAssignedTherapists() {
+        UUID profileId = UUID.randomUUID();
+        ProfileMatchingPreference preference = new ProfileMatchingPreference();
+        preference.setProfileId(profileId);
+        preference.setIsLgbtqPriority(true);
+        preference.setCommunicationStyle("listener");
+        preference.setReasons(new String[]{"anxiety"});
+
+        Therapist priorTherapist = createTherapist("listener", true, new String[]{"anxiety"});
+        Therapist freshTherapist = createTherapist("listener", true, new String[]{"anxiety"});
+
+        TherapistAssignment priorAssignment = new TherapistAssignment();
+        priorAssignment.setProfileId(profileId);
+        priorAssignment.setTherapist(priorTherapist);
+        priorAssignment.setStatus(AssignmentStatus.INACTIVE);
+
+        when(preferenceRepository.findById(profileId)).thenReturn(Optional.of(preference));
+        when(therapistRepository.findMatchingTherapists(eq(true), eq("listener"), any(String[].class)))
+                .thenReturn(List.of(priorTherapist, freshTherapist));
+        when(assignmentRepository.findAllByProfileId(profileId))
+                .thenReturn(List.of(priorAssignment));
+
+        List<TherapistMatchResponse> matches = therapistMatchingService.findMatches(profileId);
+
+        assertEquals(1, matches.size());
+        assertEquals(freshTherapist.getTherapistId(), matches.get(0).id());
+    }
+
+    @Test
+    void findMatches_fallsBackToBestMatchWhenAllTherapistsArePreviouslyAssigned() {
+        UUID profileId = UUID.randomUUID();
+        ProfileMatchingPreference preference = new ProfileMatchingPreference();
+        preference.setProfileId(profileId);
+        preference.setIsLgbtqPriority(true);
+        preference.setCommunicationStyle("listener");
+        preference.setReasons(new String[]{"anxiety"});
+
+        Therapist topMatch = createTherapist("listener", true, new String[]{"anxiety"});
+        Therapist secondMatch = createTherapist("listener", true, new String[]{"anxiety"});
+
+        TherapistAssignment priorTop = new TherapistAssignment();
+        priorTop.setProfileId(profileId);
+        priorTop.setTherapist(topMatch);
+        priorTop.setStatus(AssignmentStatus.INACTIVE);
+
+        TherapistAssignment priorSecond = new TherapistAssignment();
+        priorSecond.setProfileId(profileId);
+        priorSecond.setTherapist(secondMatch);
+        priorSecond.setStatus(AssignmentStatus.INACTIVE);
+
+        when(preferenceRepository.findById(profileId)).thenReturn(Optional.of(preference));
+        when(therapistRepository.findMatchingTherapists(eq(true), eq("listener"), any(String[].class)))
+                .thenReturn(List.of(topMatch, secondMatch));
+        when(assignmentRepository.findAllByProfileId(profileId))
+                .thenReturn(List.of(priorTop, priorSecond));
+
+        List<TherapistMatchResponse> matches = therapistMatchingService.findMatches(profileId);
+
+        assertEquals(2, matches.size());
+        assertEquals(topMatch.getTherapistId(), matches.get(0).id());
+        assertEquals(secondMatch.getTherapistId(), matches.get(1).id());
+    }
+
+    @Test
     void findMatches_returnsResultsFromFallbackWhenStyleHasNoExactMatch() {
         UUID profileId = UUID.randomUUID();
         ProfileMatchingPreference preference = new ProfileMatchingPreference();

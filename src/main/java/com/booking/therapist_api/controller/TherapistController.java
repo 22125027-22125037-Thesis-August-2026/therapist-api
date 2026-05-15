@@ -2,6 +2,7 @@ package com.booking.therapist_api.controller;
 
 import com.booking.therapist_api.dto.ScheduleSlotResponseDto;
 import com.booking.therapist_api.dto.TherapistDetailResponseDto;
+import com.booking.therapist_api.dto.TherapistReviewResponseDto;
 import com.booking.therapist_api.service.TherapistService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,5 +36,12 @@ public class TherapistController {
             Pageable pageable
     ) {
         return ResponseEntity.ok(therapistService.getAvailableSlots(therapistId, pageable));
+    }
+
+    @GetMapping("/{id}/reviews")
+    public ResponseEntity<List<TherapistReviewResponseDto>> getTherapistReviews(
+            @PathVariable("id") UUID therapistId
+    ) {
+        return ResponseEntity.ok(therapistService.getTherapistReviews(therapistId));
     }
 }
