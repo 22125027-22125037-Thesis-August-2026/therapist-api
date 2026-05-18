@@ -5,10 +5,12 @@ import com.booking.therapist_api.dto.BookingResponseDto;
 import com.booking.therapist_api.dto.AppointmentHistoryItemResponseDto;
 import com.booking.therapist_api.dto.UpcomingAppointmentResponseDto;
 import com.booking.therapist_api.dto.VideoJoinResponseDto;
+import com.booking.therapist_api.security.AuthUserDetails;
 import com.booking.therapist_api.service.BookingService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,10 +35,19 @@ public class AppointmentController {
     @PostMapping("/bookings")
     public ResponseEntity<BookingResponseDto> createBooking(
             @Valid @RequestBody BookingRequestDto request,
-            @AuthenticationPrincipal String userId
+            @AuthenticationPrincipal String userId,
+            Authentication authentication
     ) {
         UUID patientId = UUID.fromString(userId);
-        BookingResponseDto response = bookingService.processBooking(patientId, request.slotId());
+
+        String userEmail = "";
+        String userName = "";
+        if (authentication != null && authentication.getDetails() instanceof AuthUserDetails details) {
+            userEmail = details.email() == null ? "" : details.email();
+            userName = details.name() == null ? "" : details.name();
+        }
+
+        BookingResponseDto response = bookingService.processBooking(patientId, request.slotId(), userEmail, userName);
         return ResponseEntity.status(201).body(response);
     }
 

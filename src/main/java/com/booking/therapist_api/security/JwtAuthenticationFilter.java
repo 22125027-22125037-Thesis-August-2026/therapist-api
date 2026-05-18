@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -42,6 +41,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null && jwtService.isTokenValid(token)) {
             String subject = jwtService.extractPrincipalId(token);
             String role = jwtService.extractRole(token);
+            String email = jwtService.extractEmail(token);
+            String name = jwtService.extractDisplayName(token);
 
             if (subject != null && role != null && !role.isBlank()) {
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -49,7 +50,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         null,
                         Collections.singletonList(new SimpleGrantedAuthority(role))
                 );
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Attach minimal user display details for downstream event publishing.
+                authentication.setDetails(new AuthUserDetails(email, name));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

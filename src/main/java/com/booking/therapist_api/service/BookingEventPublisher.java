@@ -1,6 +1,7 @@
 package com.booking.therapist_api.service;
 
 import com.booking.therapist_api.config.RabbitMQConfig;
+import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.event.AppointmentBookedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,8 +22,23 @@ public class BookingEventPublisher {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    public void publishAppointmentBooked(UUID appointmentId) {
-        AppointmentBookedEvent event = new AppointmentBookedEvent(appointmentId, Instant.now());
+    public void publishAppointmentBooked(Appointment appointment, String userEmail, String userName) {
+        UUID messageId = UUID.randomUUID();
+        Instant occurredAt = Instant.now();
+
+        String safeUserEmail = userEmail == null ? "" : userEmail;
+        String safeUserName = userName == null ? "" : userName;
+
+        AppointmentBookedEvent event = new AppointmentBookedEvent(
+                messageId,
+                occurredAt,
+                appointment.getId(),
+                appointment.getProfileId(),
+                safeUserEmail,
+                safeUserName,
+                appointment.getTherapist().getFullName(),
+                appointment.getStartDatetime()
+        );
 
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.BOOKING_EXCHANGE,
@@ -30,6 +46,11 @@ public class BookingEventPublisher {
                 event
         );
 
-        LOGGER.info("Published appointment booked event for appointmentId={}", appointmentId);
+        LOGGER.info(
+                "Published appointment booked event messageId={} appointmentId={} profileId={}",
+                messageId,
+                appointment.getId(),
+                appointment.getProfileId()
+        );
     }
 }

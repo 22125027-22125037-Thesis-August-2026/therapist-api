@@ -43,7 +43,7 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponseDto processBooking(UUID patientId, UUID slotId) {
+    public BookingResponseDto processBooking(UUID patientId, UUID slotId, String userEmail, String userName) {
         ScheduleSlot slot = slotRepository.findById(slotId)
                 .orElseThrow(() -> new ResourceNotFoundException("Slot not found for id: " + slotId));
 
@@ -64,7 +64,7 @@ public class BookingService {
         appointment.setMeetingPassword(roomDetails.meetingPassword());
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        eventPublisher.publishAppointmentBooked(savedAppointment.getId());
+        eventPublisher.publishAppointmentBooked(savedAppointment, userEmail, userName);
 
         return new BookingResponseDto(
                 savedAppointment.getId(),

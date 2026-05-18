@@ -22,6 +22,12 @@ public class JwtService {
     private static final String PROFILE_ID_CLAIM = "profileId";
     private static final String ROLE_CLAIM = "role";
 
+    private static final String EMAIL_CLAIM = "email";
+    private static final String NAME_CLAIM = "name";
+    private static final String PREFERRED_USERNAME_CLAIM = "preferred_username";
+    private static final String GIVEN_NAME_CLAIM = "given_name";
+    private static final String FAMILY_NAME_CLAIM = "family_name";
+
     private final PublicKey verificationKey;
     private final String expectedIssuer;
     private final String expectedAudience;
@@ -48,6 +54,34 @@ public class JwtService {
     public String extractRole(String token) {
         String rawRole = parseClaims(token).get(ROLE_CLAIM, String.class);
         return normalizeRole(rawRole);
+    }
+
+    public String extractEmail(String token) {
+        Claims claims = parseClaims(token);
+        String email = claims.get(EMAIL_CLAIM, String.class);
+        if (StringUtils.hasText(email)) {
+            return email;
+        }
+
+        // Some identity providers use preferred_username for email/username.
+        String preferred = claims.get(PREFERRED_USERNAME_CLAIM, String.class);
+        return StringUtils.hasText(preferred) ? preferred : null;
+    }
+
+    public String extractDisplayName(String token) {
+        Claims claims = parseClaims(token);
+
+        String name = claims.get(NAME_CLAIM, String.class);
+        if (StringUtils.hasText(name)) {
+            return name;
+        }
+
+        String given = claims.get(GIVEN_NAME_CLAIM, String.class);
+        String family = claims.get(FAMILY_NAME_CLAIM, String.class);
+        String combined = (StringUtils.hasText(given) ? given.trim() : "")
+                + (StringUtils.hasText(family) ? (StringUtils.hasText(given) ? " " : "") + family.trim() : "");
+
+        return StringUtils.hasText(combined) ? combined : null;
     }
 
     public boolean isTokenValid(String token) {

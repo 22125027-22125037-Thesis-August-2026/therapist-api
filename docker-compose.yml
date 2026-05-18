@@ -22,14 +22,6 @@ services:
     networks:
       - backend
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    ports:
-      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
-    networks:
-      - backend
-
   api:
     build: .
     ports:
@@ -38,11 +30,14 @@ services:
       - .env
     depends_on:
       - postgres
-      - rabbitmq
     networks:
       - backend
+      - notification_api_default
     restart: unless-stopped
 
 networks:
   backend:
     driver: bridge
+
+  notification_api_default:
+    external: true
