@@ -37,7 +37,7 @@ class BookingServiceTest {
     private AppointmentRepository appointmentRepository;
 
     @Mock
-    private BookingEventPublisher eventPublisher;
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private BookingService bookingService;

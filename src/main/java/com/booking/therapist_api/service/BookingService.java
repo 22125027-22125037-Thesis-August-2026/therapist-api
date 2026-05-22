@@ -9,11 +9,13 @@ import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.entity.ScheduleSlot;
 import com.booking.therapist_api.enums.AppointmentMode;
 import com.booking.therapist_api.enums.AppointmentStatus;
+import com.booking.therapist_api.event.AppointmentBookedEvent;
 import com.booking.therapist_api.exception.MeetingNotOpenException;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.exception.SlotAlreadyBookedException;
 import com.booking.therapist_api.repository.AppointmentRepository;
 import com.booking.therapist_api.repository.ScheduleSlotRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,13 +29,13 @@ public class BookingService {
 
     private final ScheduleSlotRepository slotRepository;
     private final AppointmentRepository appointmentRepository;
-    private final BookingEventPublisher eventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
     private final VideoConsultationProvider videoProvider;
 
     public BookingService(
             ScheduleSlotRepository slotRepository,
             AppointmentRepository appointmentRepository,
-            BookingEventPublisher eventPublisher,
+            ApplicationEventPublisher eventPublisher,
             VideoConsultationProvider videoProvider
     ) {
         this.slotRepository = slotRepository;
@@ -64,7 +66,21 @@ public class BookingService {
         appointment.setMeetingPassword(roomDetails.meetingPassword());
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        eventPublisher.publishAppointmentBooked(savedAppointment, userEmail, userName);
+
+        // Build the event while the entity is still attached (resolves the lazy
+        // therapist association inside the transaction). Actual delivery to
+        // RabbitMQ is deferred until after commit by BookingEventPublisher.
+        AppointmentBookedEvent event = new AppointmentBookedEvent(
+                UUID.randomUUID(),
+                Instant.now(),
+                savedAppointment.getId(),
+                savedAppointment.getProfileId(),
+                userEmail == null ? "" : userEmail,
+                userName == null ? "" : userName,
+                savedAppointment.getTherapist().getFullName(),
+                savedAppointment.getStartDatetime()
+        );
+        eventPublisher.publishEvent(event);
 
         return new BookingResponseDto(
                 savedAppointment.getId(),

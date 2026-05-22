@@ -32,12 +32,12 @@ services:
       - postgres
     networks:
       - backend
-      - notification_api_default
+    # Resolve host.docker.internal to the host gateway so the container can
+    # reach Auth Service's RabbitMQ on the host-published port (5671).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
 networks:
   backend:
     driver: bridge
-
-  notification_api_default:
-    external: true
