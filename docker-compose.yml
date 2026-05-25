@@ -10,22 +10,10 @@ services:
     networks:
       - backend
 
-  pgadmin:
-    image: dpage/pgadmin4:8
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@local.dev}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-    ports:
-      - "${PGADMIN_PORT:-5055}:80"
-    depends_on:
-      - postgres
-    networks:
-      - backend
-
   api:
     build: .
     ports:
-      - "${SERVER_PORT:-8085}:${SERVER_PORT:-8085}"
+      - "8085:8085"
     env_file:
       - .env
     depends_on:
