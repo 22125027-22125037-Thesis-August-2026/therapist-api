@@ -32,7 +32,9 @@ services:
       - postgres
     networks:
       - backend
-      - umatter-shared
+      - umatter-shared:
+          aliases:
+            - therapist-api
     # Resolve host.docker.internal to the host gateway so the container can
     # reach Auth Service's RabbitMQ on the host-published port (5671).
     extra_hosts:
