@@ -9,6 +9,7 @@ services:
       - "${POSTGRES_PORT:-5435}:5432"
     networks:
       - backend
+      - umatter-shared
 
   pgadmin:
     image: dpage/pgadmin4:8
@@ -41,3 +42,5 @@ services:
 networks:
   backend:
     driver: bridge
+  umatter-shared:
+    external: true
