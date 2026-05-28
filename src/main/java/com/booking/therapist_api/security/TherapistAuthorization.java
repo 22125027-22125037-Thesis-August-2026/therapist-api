@@ -82,7 +82,7 @@ public class TherapistAuthorization {
 
     /**
      * Allowed only when the caller is the therapist who owns the appointment, or has ROLE_ADMIN.
-     * Used for therapist-only mutations (cancel / confirm / reject).
+     * Used for therapist-only mutations (confirm / reject).
      */
     public boolean canMutateAppointment(Authentication authentication, UUID appointmentId) {
         if (authentication == null || appointmentId == null) {
@@ -101,6 +101,34 @@ public class TherapistAuthorization {
 
         UUID callerId = parseUuidOrNull(authentication.getName());
         return callerId != null && appt.getTherapist().getTherapistId().equals(callerId);
+    }
+
+    /**
+     * Cancel is allowed by the owning therapist, the owning patient, or ROLE_ADMIN.
+     */
+    public boolean canCancelAppointment(Authentication authentication, UUID appointmentId) {
+        if (authentication == null || appointmentId == null) {
+            return false;
+        }
+        if (hasRole(authentication, "ROLE_ADMIN")) {
+            return true;
+        }
+
+        Appointment appt = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found for id: " + appointmentId));
+
+        UUID callerId = parseUuidOrNull(authentication.getName());
+        if (callerId == null) {
+            return false;
+        }
+        if (hasRole(authentication, "ROLE_THERAPIST")) {
+            return appt.getTherapist().getTherapistId().equals(callerId);
+        }
+        if (hasRole(authentication, "ROLE_PATIENT")) {
+            return appt.getProfileId().equals(callerId);
+        }
+        return false;
     }
 
     /**

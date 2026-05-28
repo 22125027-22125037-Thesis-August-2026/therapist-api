@@ -76,7 +76,7 @@ public class AppointmentController {
     }
 
     @PostMapping("/bookings/{appointmentId}/cancel")
-    @PreAuthorize("@therapistAuthorization.canMutateAppointment(authentication, #appointmentId)")
+    @PreAuthorize("@therapistAuthorization.canCancelAppointment(authentication, #appointmentId)")
     public ResponseEntity<AppointmentDetailResponseDto> cancelAppointment(
             @PathVariable UUID appointmentId,
             @Valid @RequestBody CancelAppointmentRequestDto request

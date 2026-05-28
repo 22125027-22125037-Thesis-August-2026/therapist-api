@@ -75,6 +75,8 @@ public class BookingService {
         appointment.setTherapist(slot.getTherapist());
         appointment.setSlot(slot);
         appointment.setMode(mode == null ? AppointmentMode.VIDEO : mode);
+        // Patient bookings start in REQUESTED; the therapist must /confirm or /reject.
+        appointment.setStatus(AppointmentStatus.REQUESTED);
         appointment.setStartDatetime(slot.getStartDatetime());
         appointment.setEndDatetime(slot.getEndDatetime());
         appointment.setReason(reason);
@@ -132,7 +134,7 @@ public class BookingService {
         Appointment appointment = appointmentRepository
             .findClosestUpcomingOrRecentInProgress(
                 profileId,
-                List.of(AppointmentStatus.UPCOMING, AppointmentStatus.IN_PROGRESS),
+                List.of(AppointmentStatus.REQUESTED, AppointmentStatus.UPCOMING, AppointmentStatus.IN_PROGRESS),
                 recentCutoff
             )
                 .orElseThrow(() -> new ResourceNotFoundException(

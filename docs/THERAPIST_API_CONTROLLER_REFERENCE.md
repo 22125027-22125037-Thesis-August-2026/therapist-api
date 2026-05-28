@@ -73,7 +73,7 @@ Known titles:
 | POST | `/api/v1/bookings` | Yes | Any authenticated user | Create a booking from an available slot (optional `reason`, `mode`) |
 | GET | `/api/v1/bookings/{appointmentId}` | Yes | Owning patient, owning therapist, or `ROLE_ADMIN` | Get full appointment detail |
 | GET | `/api/v1/bookings/{appointmentId}/join` | Yes | Any authenticated user | Join a video session |
-| POST | `/api/v1/bookings/{appointmentId}/cancel` | Yes | Owning therapist or `ROLE_ADMIN` | Cancel an appointment with a reason and release the slot |
+| POST | `/api/v1/bookings/{appointmentId}/cancel` | Yes | Owning patient, owning therapist, or `ROLE_ADMIN` | Cancel an appointment with a reason and release the slot |
 | POST | `/api/v1/bookings/{appointmentId}/confirm` | Yes | Owning therapist or `ROLE_ADMIN` | Confirm a `REQUESTED` booking → `UPCOMING` |
 | POST | `/api/v1/bookings/{appointmentId}/reject` | Yes | Owning therapist or `ROLE_ADMIN` | Reject a `REQUESTED` booking → `CANCELLED` and release the slot |
 | GET | `/api/v1/profiles/{profileId}/appointments/upcoming` | Yes | `self` or `ROLE_ADMIN` | Get the closest upcoming appointment for a profile |
@@ -139,10 +139,20 @@ Response `201`:
 {
   "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
   "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
-  "status": "UPCOMING",
+  "status": "REQUESTED",
   "message": "Booking created successfully"
 }
 ```
+
+Booking lifecycle:
+
+- New bookings start in `REQUESTED`. The slot is immediately locked so it
+  cannot be double-booked while the therapist decides.
+- The therapist confirms with `POST /api/v1/bookings/{id}/confirm`
+  (→ `UPCOMING`) or rejects with `POST /api/v1/bookings/{id}/reject`
+  (→ `CANCELLED`, slot released).
+- The patient can cancel at any time prior to `COMPLETED` via
+  `POST /api/v1/bookings/{id}/cancel`.
 
 Possible errors:
 
@@ -760,9 +770,10 @@ Possible errors: `403`, `404`, `401`.
 
 - Method/Path: `POST /api/v1/bookings/{appointmentId}/cancel`
 - Auth: Required
-- Authorization: Owning therapist or `ROLE_ADMIN`.
+- Authorization: Owning patient, owning therapist, or `ROLE_ADMIN`.
 - Description: Marks the appointment `CANCELLED`, captures `cancellationReason`,
-  and releases the slot so it can be re-booked.
+  and releases the slot so it can be re-booked. Allowed in `REQUESTED`,
+  `UPCOMING`, or `IN_PROGRESS` states.
 
 Request body:
 
@@ -1042,11 +1053,13 @@ REQUESTED ──confirm──▶ UPCOMING ──join──▶ IN_PROGRESS ──
     └──reject──▶ CANCELLED └──cancel──▶ CANCELLED └──cancel──▶ CANCELLED
 ```
 
-- `REQUESTED` is the optional pending-acknowledgement state. Existing
-  patient-side `POST /api/v1/bookings` still creates bookings as `UPCOMING`
-  for back-compat; therapist flows that need explicit confirmation create
-  bookings with that flow and then call `/confirm`.
-- Cancellations always release the originating slot so it can be re-booked.
+- New patient bookings via `POST /api/v1/bookings` start in `REQUESTED`. The
+  therapist must call `/confirm` (→ `UPCOMING`) or `/reject` (→ `CANCELLED`).
+- The `/profiles/{id}/appointments/upcoming` endpoint includes `REQUESTED`,
+  `UPCOMING`, and `IN_PROGRESS` so the patient's "next appointment" view
+  surfaces pending requests too.
+- Cancellations (patient or therapist) always release the originating slot so
+  it can be re-booked.
 
 ## Quick cURL Examples
 
