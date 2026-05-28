@@ -32,6 +32,9 @@ public class Appointment {
     @Column(name = "profile_id", nullable = false)
     private UUID profileId;
 
+    @Column(name = "patient_name")
+    private String patientName;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "therapist_id", nullable = false)
     private Therapist therapist;
@@ -56,6 +59,18 @@ public class Appointment {
 
     @Column(name = "start_datetime", nullable = false)
     private Instant startDatetime;
+
+    @Column(name = "end_datetime")
+    private Instant endDatetime;
+
+    @Column(name = "reason", columnDefinition = "TEXT")
+    private String reason;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -84,6 +99,14 @@ public class Appointment {
 
     public void setProfileId(UUID profileId) {
         this.profileId = profileId;
+    }
+
+    public String getPatientName() {
+        return patientName;
+    }
+
+    public void setPatientName(String patientName) {
+        this.patientName = patientName;
     }
 
     public Therapist getTherapist() {
@@ -140,6 +163,38 @@ public class Appointment {
 
     public void setStartDatetime(Instant startDatetime) {
         this.startDatetime = startDatetime;
+    }
+
+    public Instant getEndDatetime() {
+        return endDatetime;
+    }
+
+    public void setEndDatetime(Instant endDatetime) {
+        this.endDatetime = endDatetime;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
+    }
+
+    public Instant getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(Instant cancelledAt) {
+        this.cancelledAt = cancelledAt;
     }
 
     public Instant getCreatedAt() {
