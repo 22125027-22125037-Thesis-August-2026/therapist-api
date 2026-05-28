@@ -8,6 +8,7 @@ import com.booking.therapist_api.exception.InvalidAppointmentStateException;
 import com.booking.therapist_api.exception.ReviewAlreadyExistsException;
 import com.booking.therapist_api.exception.ReviewNotAllowedException;
 import com.booking.therapist_api.exception.SlotAlreadyBookedException;
+import com.booking.therapist_api.exception.SlotConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -78,6 +79,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleReviewNotAllowedException(ReviewNotAllowedException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
         problemDetail.setTitle("Review Forbidden");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(SlotConflictException.class)
+    public ProblemDetail handleSlotConflictException(SlotConflictException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Slot Conflict");
         return problemDetail;
     }
 

@@ -23,12 +23,46 @@ public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID
             Pageable pageable
     );
 
+    Page<ScheduleSlot> findByTherapist_TherapistIdAndStartDatetimeAfterOrderByStartDatetimeAsc(
+            UUID therapistId,
+            Instant now,
+            Pageable pageable
+    );
+
     long countByTherapist_TherapistId(UUID therapistId);
 
     boolean existsByTherapist_TherapistIdAndStartDatetimeAndEndDatetime(
             UUID therapistId,
             Instant startDatetime,
             Instant endDatetime
+    );
+
+    @Query("""
+            SELECT COUNT(s) > 0
+            FROM ScheduleSlot s
+            WHERE s.therapist.therapistId = :therapistId
+              AND s.id <> :excludingSlotId
+              AND s.startDatetime < :endDatetime
+              AND s.endDatetime > :startDatetime
+        """)
+    boolean overlapsExistingExcluding(
+            @Param("therapistId") UUID therapistId,
+            @Param("excludingSlotId") UUID excludingSlotId,
+            @Param("startDatetime") Instant startDatetime,
+            @Param("endDatetime") Instant endDatetime
+    );
+
+    @Query("""
+            SELECT COUNT(s) > 0
+            FROM ScheduleSlot s
+            WHERE s.therapist.therapistId = :therapistId
+              AND s.startDatetime < :endDatetime
+              AND s.endDatetime > :startDatetime
+        """)
+    boolean overlapsExisting(
+            @Param("therapistId") UUID therapistId,
+            @Param("startDatetime") Instant startDatetime,
+            @Param("endDatetime") Instant endDatetime
     );
 
     @Transactional
@@ -39,4 +73,9 @@ public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID
     @Modifying
     @Query(value = "UPDATE schedule_slots SET is_booked = true WHERE slot_id = :slotId AND is_booked = false", nativeQuery = true)
     int lockAndBookSlot(@Param("slotId") UUID slotId);
+
+    @Transactional
+    @Modifying
+    @Query(value = "UPDATE schedule_slots SET is_booked = false WHERE slot_id = :slotId", nativeQuery = true)
+    int releaseSlot(@Param("slotId") UUID slotId);
 }

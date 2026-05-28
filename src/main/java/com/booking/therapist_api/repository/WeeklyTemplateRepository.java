@@ -11,4 +11,6 @@ public interface WeeklyTemplateRepository extends JpaRepository<WeeklyTemplate, 
     List<WeeklyTemplate> findByIsActiveTrue();
 
     List<WeeklyTemplate> findByTherapist_TherapistIdAndIsActiveTrueOrderByDayOfWeekAscStartTimeAsc(UUID therapistId);
+
+    List<WeeklyTemplate> findByTherapist_TherapistIdOrderByDayOfWeekAscStartTimeAsc(UUID therapistId);
 }
