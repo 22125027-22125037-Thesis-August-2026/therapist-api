@@ -14,5 +14,7 @@ public interface TherapistAssignmentRepository extends JpaRepository<TherapistAs
 
     List<TherapistAssignment> findAllByTherapist_TherapistIdAndStatus(UUID therapistId, AssignmentStatus status);
 
+    List<TherapistAssignment> findAllByTherapist_TherapistIdOrderByAssignedAtDesc(UUID therapistId);
+
     List<TherapistAssignment> findAllByProfileId(UUID profileId);
 }
