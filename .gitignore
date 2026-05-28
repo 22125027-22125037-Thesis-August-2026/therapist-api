@@ -44,3 +44,4 @@ replay_pid*.log
 .env
 .env.local-bak-20260520
 /ignore copilot chat
+.claude/settings.local.json
