@@ -7,9 +7,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record UpcomingAppointmentResponseDto(
+public record TherapistAppointmentItemDto(
         UUID appointmentId,
         UUID profileId,
+        String patientName,
         UUID therapistId,
         UUID slotId,
         String mode,

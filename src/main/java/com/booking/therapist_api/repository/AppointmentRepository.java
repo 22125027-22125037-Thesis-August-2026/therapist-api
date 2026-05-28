@@ -2,6 +2,8 @@ package com.booking.therapist_api.repository;
 
 import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.enums.AppointmentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +42,45 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 			UUID profileId,
 			AppointmentStatus status
 	);
+
+	@Query("""
+			SELECT a
+			FROM Appointment a
+			WHERE a.therapist.therapistId = :therapistId
+			  AND (:statuses IS NULL OR a.status IN :statuses)
+			  AND (:from IS NULL OR a.startDatetime >= :from)
+			  AND (:to IS NULL OR a.startDatetime < :to)
+			ORDER BY a.startDatetime DESC
+		""")
+	Page<Appointment> findTherapistAppointments(
+			@Param("therapistId") UUID therapistId,
+			@Param("statuses") Collection<AppointmentStatus> statuses,
+			@Param("from") Instant from,
+			@Param("to") Instant to,
+			Pageable pageable
+	);
+
+	long countByTherapist_TherapistIdAndStatus(UUID therapistId, AppointmentStatus status);
+
+	@Query("""
+			SELECT COUNT(a)
+			FROM Appointment a
+			WHERE a.therapist.therapistId = :therapistId
+			  AND a.status = :status
+			  AND a.startDatetime >= :from
+			  AND a.startDatetime < :to
+		""")
+	long countCompletedByTherapistInRange(
+			@Param("therapistId") UUID therapistId,
+			@Param("status") AppointmentStatus status,
+			@Param("from") Instant from,
+			@Param("to") Instant to
+	);
+
+	@Query("""
+			SELECT DISTINCT a.profileId
+			FROM Appointment a
+			WHERE a.therapist.therapistId = :therapistId
+		""")
+	List<UUID> findDistinctProfileIdsByTherapistId(@Param("therapistId") UUID therapistId);
 }
