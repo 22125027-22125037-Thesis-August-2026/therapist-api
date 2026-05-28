@@ -51,6 +51,7 @@ Known titles:
 - `Resource Not Found` (`404`)
 - `Room Not Open` (`403`)
 - `Invalid Appointment State` (`409`)
+- `Slot Conflict` (`409`)
 - `Clinical Note Conflict` (`409`)
 - `Clinical Note Forbidden` (`403`)
 - `Review Conflict` (`409`)
@@ -69,15 +70,40 @@ Known titles:
 
 | Method | Path | Auth | Role | Description |
 | --- | --- | --- | --- | --- |
-| POST | `/api/v1/bookings` | Yes | Any authenticated user | Create a booking from an available slot |
+| POST | `/api/v1/bookings` | Yes | Any authenticated user | Create a booking from an available slot (optional `reason`, `mode`) |
+| GET | `/api/v1/bookings/{appointmentId}` | Yes | Owning patient, owning therapist, or `ROLE_ADMIN` | Get full appointment detail |
 | GET | `/api/v1/bookings/{appointmentId}/join` | Yes | Any authenticated user | Join a video session |
+| POST | `/api/v1/bookings/{appointmentId}/cancel` | Yes | Owning therapist or `ROLE_ADMIN` | Cancel an appointment with a reason and release the slot |
+| POST | `/api/v1/bookings/{appointmentId}/confirm` | Yes | Owning therapist or `ROLE_ADMIN` | Confirm a `REQUESTED` booking → `UPCOMING` |
+| POST | `/api/v1/bookings/{appointmentId}/reject` | Yes | Owning therapist or `ROLE_ADMIN` | Reject a `REQUESTED` booking → `CANCELLED` and release the slot |
 | GET | `/api/v1/profiles/{profileId}/appointments/upcoming` | Yes | `self` or `ROLE_ADMIN` | Get the closest upcoming appointment for a profile |
 | GET | `/api/v1/profiles/{profileId}/appointments/history` | Yes | `self` or `ROLE_ADMIN` | Get completed/cancelled appointment history for a profile |
 | GET | `/api/v1/profiles/{profileId}/appointments/unreviewed` | Yes | `self` or `ROLE_ADMIN` | Get completed appointments for a profile that have not yet been reviewed |
 | GET | `/api/v1/therapists/{id}` | Yes | Any authenticated user | Get therapist detail profile payload |
-| GET | `/api/v1/therapists/{id}/slots` | Yes | Any authenticated user | Get pageable future available slots |
+| GET | `/api/v1/therapists/{id}/slots` | Yes | Any authenticated user | Get pageable future available slots (patient-facing) |
+| GET | `/api/v1/therapists/{id}/slots/manage` | Yes | `self` or `ROLE_ADMIN` | Get therapist's own slots with optional `?includeBooked=true` and booking metadata |
+| POST | `/api/v1/therapists/{id}/slots` | Yes | `self` or `ROLE_ADMIN` | Create a slot |
+| POST | `/api/v1/therapists/{id}/slots:bulk` | Yes | `self` or `ROLE_ADMIN` | Create slots in bulk |
+| PUT | `/api/v1/therapists/{id}/slots/{slotId}` | Yes | `self` or `ROLE_ADMIN` | Update an unbooked slot |
+| DELETE | `/api/v1/therapists/{id}/slots/{slotId}` | Yes | `self` or `ROLE_ADMIN` | Delete an unbooked slot |
+| GET | `/api/v1/therapists/{id}/availability-templates` | Yes | `self` or `ROLE_ADMIN` | List weekly templates |
+| POST | `/api/v1/therapists/{id}/availability-templates` | Yes | `self` or `ROLE_ADMIN` | Create a weekly template |
+| PUT | `/api/v1/therapists/{id}/availability-templates/{templateId}` | Yes | `self` or `ROLE_ADMIN` | Update a weekly template |
+| DELETE | `/api/v1/therapists/{id}/availability-templates/{templateId}` | Yes | `self` or `ROLE_ADMIN` | Delete a weekly template |
 | GET | `/api/v1/therapists/{id}/reviews` | Yes | Any authenticated user | Get all reviews for a therapist (newest first) |
-| POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST`, `ROLE_ADMIN` | Submit a clinical note |
+| GET | `/api/v1/therapists/{id}/appointments` | Yes | `self` or `ROLE_ADMIN` | Pageable list of the therapist's own appointments, filterable by `status`/`from`/`to` |
+| GET | `/api/v1/therapists/{id}/patients` | Yes | `self` or `ROLE_ADMIN` | List patients ever assigned to this therapist (active + historical) |
+| GET | `/api/v1/therapists/{id}/dashboard/summary` | Yes | `self` or `ROLE_ADMIN` | KPIs for the therapist dashboard |
+| GET | `/api/v1/patients/{profileId}/matching-preferences` | Yes | Active assigned therapist or `ROLE_ADMIN` | Read the patient's matching-form responses |
+| GET | `/api/v1/patients/{profileId}/tags` | Yes | Active assigned therapist or `ROLE_ADMIN` | Read patient tags |
+| PUT | `/api/v1/patients/{profileId}/tags` | Yes | Active assigned therapist or `ROLE_ADMIN` | Upsert patient tags |
+| GET | `/api/v1/patients/{profileId}/risk-level` | Yes | Active assigned therapist or `ROLE_ADMIN` | Read patient risk level |
+| PUT | `/api/v1/patients/{profileId}/risk-level` | Yes | Active assigned therapist or `ROLE_ADMIN` | Upsert patient risk level |
+| POST | `/api/v1/notes` | Yes | `ROLE_THERAPIST`, `ROLE_ADMIN` | Submit a clinical note (supports `status=DRAFT` or `FINALIZED`) |
+| GET | `/api/v1/notes` | Yes | `ROLE_THERAPIST`, `ROLE_ADMIN` | List clinical notes (filterable by `therapistId`, `patientId`, `status`) |
+| GET | `/api/v1/notes/{noteId}` | Yes | Owning patient, owning therapist, or `ROLE_ADMIN` | Get a clinical note by id |
+| PUT | `/api/v1/notes/{noteId}` | Yes | Owning therapist or `ROLE_ADMIN` | Amend a draft note (cannot edit FINALIZED) |
+| POST | `/api/v1/notes/{noteId}/finalize` | Yes | Owning therapist or `ROLE_ADMIN` | Finalize a draft note |
 | GET | `/api/v1/notes/appointments/{appointmentId}` | Yes | `ROLE_PATIENT`, `ROLE_THERAPIST`, `ROLE_ADMIN` | Get a clinical note for an appointment |
 | POST | `/api/v1/reviews` | Yes | `ROLE_PATIENT` | Submit a therapist review |
 | POST | `/api/v1/matching/preferences` | Yes | Any authenticated user | Save profile matching preferences |
@@ -93,13 +119,17 @@ Known titles:
 
 - Method/Path: `POST /api/v1/bookings`
 - Auth: Required
-- Description: Books a slot and creates a video appointment.
+- Description: Books a slot and creates an appointment. New optional fields:
+  `reason` (free-text patient-stated reason, max 1000 chars) and `mode`
+  (`VIDEO` default, `TEXT` allowed).
 
 Request body:
 
 ```json
 {
-  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6"
+  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
+  "reason": "Recurring anxiety around exams",
+  "mode": "VIDEO"
 }
 ```
 
@@ -172,7 +202,9 @@ Response `200` (example):
   "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
   "mode": "VIDEO",
   "status": "UPCOMING",
-  "startDatetime": "2026-04-20T08:00:00Z"
+  "startDatetime": "2026-04-20T08:00:00Z",
+  "endDatetime": "2026-04-20T08:50:00Z",
+  "reason": "Recurring anxiety around exams"
 }
 ```
 
@@ -695,6 +727,326 @@ Response `200`:
   "message": "Schedule slot cleanup triggered"
 }
 ```
+
+### 18. Get Appointment Detail
+
+- Method/Path: `GET /api/v1/bookings/{appointmentId}`
+- Auth: Required
+- Authorization: Owning patient, owning therapist, or `ROLE_ADMIN`.
+
+Response `200`:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "patientName": "Alice Nguyen",
+  "therapistId": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+  "therapistName": "Dr. Sarah Johnson",
+  "therapistSpecialization": "Anxiety & Panic Disorders",
+  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
+  "mode": "VIDEO",
+  "status": "UPCOMING",
+  "startDatetime": "2026-04-20T08:00:00Z",
+  "endDatetime": "2026-04-20T08:50:00Z",
+  "reason": "Recurring anxiety around exams",
+  "createdAt": "2026-04-15T07:20:11.913Z"
+}
+```
+
+Possible errors: `403`, `404`, `401`.
+
+### 19. Cancel Appointment
+
+- Method/Path: `POST /api/v1/bookings/{appointmentId}/cancel`
+- Auth: Required
+- Authorization: Owning therapist or `ROLE_ADMIN`.
+- Description: Marks the appointment `CANCELLED`, captures `cancellationReason`,
+  and releases the slot so it can be re-booked.
+
+Request body:
+
+```json
+{ "reason": "Therapist unavailable due to family emergency" }
+```
+
+Response `200`: same shape as #18, with `status: "CANCELLED"`,
+`cancellationReason` populated, and `cancelledAt` set.
+
+Possible errors:
+
+- `400` validation failure (reason missing or too long)
+- `409` appointment already `COMPLETED` or `CANCELLED`
+- `403` caller is not the owning therapist and not admin
+- `404` appointment not found
+
+### 20. Confirm / Reject Booking
+
+- Method/Path: `POST /api/v1/bookings/{appointmentId}/confirm`
+- Method/Path: `POST /api/v1/bookings/{appointmentId}/reject`
+- Auth: Required
+- Authorization: Owning therapist or `ROLE_ADMIN`.
+- Description: Confirm transitions `REQUESTED → UPCOMING`. Reject transitions
+  `REQUESTED → CANCELLED`, captures the optional `reason`, and releases the slot.
+
+Reject body (optional):
+
+```json
+{ "reason": "Outside my clinical specialty" }
+```
+
+Response `200`: same shape as #18.
+
+Possible errors:
+
+- `409` appointment is not in `REQUESTED` state
+- `403` / `404` / `401`
+
+### 21. List Therapist Appointments
+
+- Method/Path: `GET /api/v1/therapists/{therapistId}/appointments`
+- Auth: Required
+- Authorization: `self` or `ROLE_ADMIN`.
+- Query params: `status` (repeatable), `from` (ISO-8601), `to` (ISO-8601),
+  Spring `Pageable` (`page`, `size`, `sort`).
+
+Response `200` returns a Spring `Page<TherapistAppointmentItemDto>`. Each item:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "patientName": "Alice Nguyen",
+  "therapistId": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+  "slotId": "9b3ea8e0-7eaf-4b9f-a72e-932c9ce0e0d6",
+  "mode": "VIDEO",
+  "status": "UPCOMING",
+  "startDatetime": "2026-04-20T08:00:00Z",
+  "endDatetime": "2026-04-20T08:50:00Z",
+  "reason": "Exam-related anxiety"
+}
+```
+
+### 22. Therapist-managed Slots
+
+- `GET /api/v1/therapists/{id}/slots/manage?includeBooked=true|false` —
+  Spring `Pageable`. When `includeBooked=true`, returns booked slots with
+  patient metadata.
+- `POST /api/v1/therapists/{id}/slots` — `{ startDatetime, endDatetime }`.
+  Validation: `end > start`, `start` in the future, no overlap.
+- `POST /api/v1/therapists/{id}/slots:bulk` — `{ slots: [...] }`.
+- `PUT /api/v1/therapists/{id}/slots/{slotId}` — update; rejected if the slot
+  is booked.
+- `DELETE /api/v1/therapists/{id}/slots/{slotId}` — delete; rejected if booked.
+
+Slot response:
+
+```json
+{
+  "slotId": "7d99dc64-9374-4647-9f06-abf346f074ef",
+  "startDatetime": "2026-04-20T08:00:00Z",
+  "endDatetime": "2026-04-20T08:50:00Z",
+  "isBooked": true,
+  "bookedByPatientId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "bookedByPatientName": "Alice Nguyen",
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a"
+}
+```
+
+Possible errors: `409 Slot Conflict` on overlap or invalid window;
+`409 Invalid Appointment State` when mutating a booked slot.
+
+### 23. Weekly Availability Templates
+
+- `GET    /api/v1/therapists/{id}/availability-templates`
+- `POST   /api/v1/therapists/{id}/availability-templates`
+- `PUT    /api/v1/therapists/{id}/availability-templates/{templateId}`
+- `DELETE /api/v1/therapists/{id}/availability-templates/{templateId}`
+
+Request / response body:
+
+```json
+{
+  "templateId": "5e6f51c4-9eaf-4e1c-8c4e-bda3d2e3fae6",
+  "therapistId": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+  "dayOfWeek": "MONDAY",
+  "startTime": "08:00",
+  "endTime": "16:00",
+  "isActive": true
+}
+```
+
+### 24. Therapist Patient Roster
+
+- Method/Path: `GET /api/v1/therapists/{therapistId}/patients`
+- Auth: Required
+- Authorization: `self` or `ROLE_ADMIN`.
+- Description: All profiles ever assigned (ACTIVE + historical), newest first.
+
+Response `200`:
+
+```json
+[
+  {
+    "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+    "patientName": "Alice Nguyen",
+    "assignmentStatus": "ACTIVE",
+    "assignedAt": "2026-04-15T08:10:19.251Z",
+    "riskLevel": "LOW",
+    "tags": ["cbt", "exam-anxiety"]
+  }
+]
+```
+
+### 25. Patient Matching Preferences (therapist read)
+
+- Method/Path: `GET /api/v1/patients/{profileId}/matching-preferences`
+- Auth: Required
+- Authorization: Therapist currently `ACTIVE`-assigned to the patient, or `ROLE_ADMIN`.
+
+Response `200`:
+
+```json
+{
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "has_prior_counseling": "No",
+  "sexual_orientation": "heterosexual",
+  "is_lgbtq_priority": false,
+  "reasons": ["stress", "sleep"],
+  "communication_style": "empathetic",
+  "last_updated_at": "2026-04-15T07:40:03.011Z"
+}
+```
+
+Possible errors: `403` (no active assignment), `404` (no preferences saved).
+
+### 26. Patient Tags + Risk Level
+
+- `GET /api/v1/patients/{profileId}/tags`
+- `PUT /api/v1/patients/{profileId}/tags` — body `{ "tags": ["cbt", "exam-anxiety"] }`
+- `GET /api/v1/patients/{profileId}/risk-level`
+- `PUT /api/v1/patients/{profileId}/risk-level` — body `{ "riskLevel": "LOW" | "MEDIUM" | "HIGH" }`
+
+Authorization: Therapist currently `ACTIVE`-assigned to the patient, or `ROLE_ADMIN`.
+
+Tags response:
+
+```json
+{
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "tags": ["cbt", "exam-anxiety"],
+  "updatedAt": "2026-04-20T09:11:32.014Z",
+  "updatedBy": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f"
+}
+```
+
+Risk-level response is the same shape with `riskLevel` instead of `tags`.
+
+### 27. Rich Clinical Notes (SOAP + risk flags + drafts)
+
+`POST /api/v1/notes` now accepts the full SOAP shape plus risk flags and an
+optional `status`. Default `status` is `FINALIZED` for back-compat.
+
+Request body:
+
+```json
+{
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "diagnosis": "Moderate anxiety",
+  "recommendations": "Weekly CBT for 8 weeks",
+  "subjective": "Patient reports trouble sleeping...",
+  "objective": "Anxious affect, restlessness observed",
+  "assessment": "F41.1 Generalized Anxiety Disorder",
+  "plan": "CBT sessions, sleep hygiene exercises",
+  "summary": "Anxiety w/ sleep impact — CBT plan",
+  "riskSuicidalIdeation": false,
+  "riskSelfHarm": false,
+  "riskSubstanceUse": false,
+  "riskAbuse": false,
+  "status": "DRAFT"
+}
+```
+
+- `status: "DRAFT"` does NOT flip the appointment to `COMPLETED`. Drafts only
+  allowed when the appointment is `UPCOMING` or `IN_PROGRESS`.
+- `status: "FINALIZED"` keeps the original semantics: appointment must be
+  `IN_PROGRESS` and is transitioned to `COMPLETED`.
+
+Lifecycle endpoints:
+
+- `PUT  /api/v1/notes/{noteId}` — amend a draft (FINALIZED notes are read-only).
+- `POST /api/v1/notes/{noteId}/finalize` — transition draft → FINALIZED and
+  flip the appointment to `COMPLETED` if it is still `IN_PROGRESS`.
+- `GET  /api/v1/notes/{noteId}` — fetch by note id.
+- `GET  /api/v1/notes/appointments/{appointmentId}` — fetch by appointment.
+- `GET  /api/v1/notes?therapistId=&patientId=&status=&page=&size=` — list
+  (therapist callers are always scoped to their own notes regardless of the
+  `therapistId` query param).
+
+Note detail response:
+
+```json
+{
+  "noteId": "2eb65f39-7da4-4ca4-9820-e9c412084d45",
+  "appointmentId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "profileId": "76d7800a-ae23-4f65-9d3d-c9536e2bdf5a",
+  "therapistId": "5f2afc57-d6e4-4dd4-a2f2-34b2520ff31f",
+  "appointmentStatus": "COMPLETED",
+  "status": "FINALIZED",
+  "diagnosis": "Moderate anxiety",
+  "recommendations": "Weekly CBT for 8 weeks",
+  "subjective": "...",
+  "objective": "...",
+  "assessment": "...",
+  "plan": "...",
+  "summary": "Anxiety w/ sleep impact — CBT plan",
+  "riskFlags": {
+    "suicidalIdeation": false,
+    "selfHarm": false,
+    "substanceUse": false,
+    "abuse": false
+  },
+  "createdAt": "2026-04-15T07:35:21.913Z",
+  "updatedAt": "2026-04-15T07:40:03.011Z"
+}
+```
+
+### 28. Therapist Dashboard Summary
+
+- Method/Path: `GET /api/v1/therapists/{therapistId}/dashboard/summary`
+- Auth: Required
+- Authorization: `self` or `ROLE_ADMIN`.
+
+Response `200`:
+
+```json
+{
+  "activePatientCount": 12,
+  "completedThisMonth": 23,
+  "averageRating": 4.85,
+  "pendingBookingCount": 2,
+  "draftNoteCount": 1,
+  "moodAlertCount": 0
+}
+```
+
+`moodAlertCount` is owned by the Tracking Service and is currently returned
+as `0` from the therapist-api until the cross-service `/alerts` endpoint is
+wired in.
+
+## Appointment status lifecycle
+
+```
+REQUESTED ──confirm──▶ UPCOMING ──join──▶ IN_PROGRESS ──submit note (FINALIZED)──▶ COMPLETED
+    │                     │                      │
+    └──reject──▶ CANCELLED └──cancel──▶ CANCELLED └──cancel──▶ CANCELLED
+```
+
+- `REQUESTED` is the optional pending-acknowledgement state. Existing
+  patient-side `POST /api/v1/bookings` still creates bookings as `UPCOMING`
+  for back-compat; therapist flows that need explicit confirmation create
+  bookings with that flow and then call `/confirm`.
+- Cancellations always release the originating slot so it can be re-booked.
 
 ## Quick cURL Examples
 
