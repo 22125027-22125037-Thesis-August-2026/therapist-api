@@ -100,7 +100,6 @@ class ReviewServiceIntegrationTest {
 
     private Appointment createAppointment(UUID patientId, AppointmentStatus status, EntityManager entityManager) {
         Therapist therapist = new Therapist();
-        therapist.setAccountId(UUID.randomUUID());
         therapist.setFullName("Review Test Therapist");
         therapist = entityManager.merge(therapist);
 

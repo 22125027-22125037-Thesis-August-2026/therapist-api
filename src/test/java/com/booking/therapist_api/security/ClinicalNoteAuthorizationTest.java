@@ -4,6 +4,7 @@ import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.entity.Therapist;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.AppointmentRepository;
+import com.booking.therapist_api.repository.ClinicalNoteRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,6 +28,9 @@ class ClinicalNoteAuthorizationTest {
 
     @Mock
     private AppointmentRepository appointmentRepository;
+
+    @Mock
+    private ClinicalNoteRepository clinicalNoteRepository;
 
     @InjectMocks
     private ClinicalNoteAuthorization clinicalNoteAuthorization;

@@ -200,7 +200,6 @@ class TherapistMatchingServiceTest {
     private Therapist createTherapist(String communicationStyle, boolean isLgbtqAllied, String[] treatedChallenges) {
         Therapist therapist = new Therapist();
         therapist.setTherapistId(UUID.randomUUID());
-        therapist.setAccountId(UUID.randomUUID());
         therapist.setFullName("Fallback Therapist");
         therapist.setSpecialization("Mood disorders");
         therapist.setCommunicationStyle(communicationStyle);

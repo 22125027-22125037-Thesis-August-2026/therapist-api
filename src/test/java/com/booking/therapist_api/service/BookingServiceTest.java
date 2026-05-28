@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +39,9 @@ class BookingServiceTest {
 
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private VideoConsultationProvider videoProvider;
 
     @InjectMocks
     private BookingService bookingService;
@@ -64,10 +68,10 @@ class BookingServiceTest {
         appointment.setStatus(AppointmentStatus.UPCOMING);
         appointment.setStartDatetime(Instant.now().plusSeconds(3600));
 
-        when(appointmentRepository.findFirstByProfileIdAndStartDatetimeAfterAndStatusOrderByStartDatetimeAsc(
+        when(appointmentRepository.findClosestUpcomingOrRecentInProgress(
                 eq(profileId),
-                any(Instant.class),
-                eq(AppointmentStatus.UPCOMING)
+                any(Collection.class),
+                any(Instant.class)
         )).thenReturn(Optional.of(appointment));
 
         UpcomingAppointmentResponseDto response = bookingService.getClosestUpcomingAppointment(profileId);
@@ -85,18 +89,18 @@ class BookingServiceTest {
     void getClosestUpcomingAppointment_throwsWhenNoFutureAppointmentExists() {
         UUID profileId = UUID.randomUUID();
 
-        when(appointmentRepository.findFirstByProfileIdAndStartDatetimeAfterAndStatusOrderByStartDatetimeAsc(
+        when(appointmentRepository.findClosestUpcomingOrRecentInProgress(
                 eq(profileId),
-                any(Instant.class),
-                eq(AppointmentStatus.UPCOMING)
+                any(Collection.class),
+                any(Instant.class)
         )).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> bookingService.getClosestUpcomingAppointment(profileId));
     }
 
-        @Test
-        void getCompletedAndCancelledAppointments_returnsHistoryItems() {
+    @Test
+    void getCompletedAndCancelledAppointments_returnsHistoryItems() {
         UUID profileId = UUID.randomUUID();
         UUID completedAppointmentId = UUID.randomUUID();
         UUID cancelledAppointmentId = UUID.randomUUID();
@@ -144,7 +148,7 @@ class BookingServiceTest {
 
         assertEquals(2, response.size());
 
-        AppointmentHistoryItemResponseDto firstItem = response.getFirst();
+        AppointmentHistoryItemResponseDto firstItem = response.get(0);
         assertEquals(completedAppointmentId, firstItem.appointmentId());
         assertEquals(profileId, firstItem.profileId());
         assertEquals(therapistId, firstItem.therapistId());
@@ -160,10 +164,10 @@ class BookingServiceTest {
         assertEquals(cancelledAppointmentId, secondItem.appointmentId());
         assertEquals(cancelledSlotId, secondItem.slotId());
         assertEquals("CANCELLED", secondItem.status());
-        }
+    }
 
-        @Test
-        void getCompletedAndCancelledAppointments_returnsEmptyListWhenNoHistoryFound() {
+    @Test
+    void getCompletedAndCancelledAppointments_returnsEmptyListWhenNoHistoryFound() {
         UUID profileId = UUID.randomUUID();
         when(appointmentRepository.findByProfileIdAndStatusInOrderByStartDatetimeDesc(
             eq(profileId),
@@ -174,5 +178,5 @@ class BookingServiceTest {
             bookingService.getCompletedAndCancelledAppointments(profileId);
 
         assertEquals(0, response.size());
-        }
+    }
 }

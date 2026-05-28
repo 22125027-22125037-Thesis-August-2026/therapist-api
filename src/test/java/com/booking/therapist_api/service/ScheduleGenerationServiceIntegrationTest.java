@@ -49,7 +49,6 @@ class ScheduleGenerationServiceIntegrationTest {
     @BeforeEach
     void setUp() {
         Therapist therapist = new Therapist();
-        therapist.setAccountId(UUID.randomUUID());
         therapist.setFullName("Test Therapist");
         therapist = entityManager.merge(therapist);
         therapistId = therapist.getTherapistId();
