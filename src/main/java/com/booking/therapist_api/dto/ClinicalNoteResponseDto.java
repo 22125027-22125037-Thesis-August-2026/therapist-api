@@ -7,6 +7,7 @@ public record ClinicalNoteResponseDto(
         UUID noteId,
         UUID appointmentId,
         String appointmentStatus,
+        String status,
         Instant createdAt,
         String message
 ) {

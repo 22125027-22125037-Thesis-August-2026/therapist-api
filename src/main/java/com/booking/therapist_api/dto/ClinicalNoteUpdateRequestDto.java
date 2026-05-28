@@ -1,24 +1,14 @@
 package com.booking.therapist_api.dto;
 
 import com.booking.therapist_api.enums.ClinicalNoteStatus;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-import java.util.UUID;
-
 /**
- * Used for both POST /api/v1/notes (create) and amendments.
- *
- * status is optional. If omitted the note is treated as FINALIZED (back-compat with
- * the original single-step submit flow). DRAFT bypasses the IN_PROGRESS state guard
- * and does NOT flip the appointment to COMPLETED.
- *
- * diagnosis / recommendations are required for FINALIZED notes and optional for DRAFT.
+ * Used for PUT /api/v1/notes/{noteId}. All fields are optional except those that the
+ * caller wants to change. Passing status=FINALIZED here is equivalent to calling the
+ * /finalize sub-resource.
  */
-public record ClinicalNoteRequestDto(
-        @NotNull(message = "appointmentId is required")
-        UUID appointmentId,
-
+public record ClinicalNoteUpdateRequestDto(
         @Size(max = 4000) String diagnosis,
         @Size(max = 4000) String recommendations,
         @Size(max = 4000) String subjective,

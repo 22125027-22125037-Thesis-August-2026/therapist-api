@@ -1,8 +1,10 @@
 package com.booking.therapist_api.security;
 
 import com.booking.therapist_api.entity.Appointment;
+import com.booking.therapist_api.entity.ClinicalNote;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.AppointmentRepository;
+import com.booking.therapist_api.repository.ClinicalNoteRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -12,9 +14,14 @@ import java.util.UUID;
 public class ClinicalNoteAuthorization {
 
     private final AppointmentRepository appointmentRepository;
+    private final ClinicalNoteRepository clinicalNoteRepository;
 
-    public ClinicalNoteAuthorization(AppointmentRepository appointmentRepository) {
+    public ClinicalNoteAuthorization(
+            AppointmentRepository appointmentRepository,
+            ClinicalNoteRepository clinicalNoteRepository
+    ) {
         this.appointmentRepository = appointmentRepository;
+        this.clinicalNoteRepository = clinicalNoteRepository;
     }
 
     public boolean canSubmit(Authentication authentication, UUID appointmentId) {
@@ -30,11 +37,9 @@ public class ClinicalNoteAuthorization {
         if (context.isAdmin) {
             return true;
         }
-
         if (!context.isTherapist) {
             return false;
         }
-
         return appointment.getTherapist().getTherapistId().equals(context.requesterId);
     }
 
@@ -51,17 +56,37 @@ public class ClinicalNoteAuthorization {
         if (context.isAdmin) {
             return true;
         }
-
-        Appointment appt = appointment;
         if (context.isTherapist) {
-            return appt.getTherapist().getTherapistId().equals(context.requesterId);
+            return appointment.getTherapist().getTherapistId().equals(context.requesterId);
         }
-
         if (context.isPatient) {
-            return appt.getProfileId().equals(context.requesterId);
+            return appointment.getProfileId().equals(context.requesterId);
         }
-
         return false;
+    }
+
+    public boolean canViewNote(Authentication authentication, UUID noteId) {
+        return resolveNote(noteId).map(note -> canView(authentication, note.getAppointment().getId())).orElse(false);
+    }
+
+    public boolean canMutateNote(Authentication authentication, UUID noteId) {
+        AuthorizationContext context = buildContext(authentication);
+        if (context == null) {
+            return false;
+        }
+        if (context.isAdmin) {
+            return true;
+        }
+        if (!context.isTherapist) {
+            return false;
+        }
+        return resolveNote(noteId)
+                .map(note -> note.getAppointment().getTherapist().getTherapistId().equals(context.requesterId))
+                .orElse(false);
+    }
+
+    private java.util.Optional<ClinicalNote> resolveNote(UUID noteId) {
+        return clinicalNoteRepository.findById(noteId);
     }
 
     private AuthorizationContext buildContext(Authentication authentication) {
