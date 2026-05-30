@@ -83,4 +83,15 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 			WHERE a.therapist.therapistId = :therapistId
 		""")
 	List<UUID> findDistinctProfileIdsByTherapistId(@Param("therapistId") UUID therapistId);
+
+	@Query("""
+			SELECT a
+			FROM Appointment a
+			WHERE a.status = :status
+			  AND a.startDatetime <= :cutoff
+		""")
+	List<Appointment> findExpiredRequests(
+			@Param("status") AppointmentStatus status,
+			@Param("cutoff") Instant cutoff
+	);
 }

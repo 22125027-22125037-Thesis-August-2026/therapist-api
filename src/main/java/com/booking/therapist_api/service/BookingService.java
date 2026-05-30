@@ -24,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -32,6 +33,12 @@ import java.util.UUID;
 
 @Service
 public class BookingService {
+
+    /** Therapists can no longer accept / reject a request once start_datetime is this close. */
+    public static final Duration THERAPIST_DECISION_WINDOW = Duration.ofHours(2);
+
+    /** Neither party can cancel an UPCOMING appointment once start_datetime is this close. */
+    public static final Duration CANCEL_WINDOW = Duration.ofHours(1);
 
     private final ScheduleSlotRepository slotRepository;
     private final AppointmentRepository appointmentRepository;
@@ -61,6 +68,15 @@ public class BookingService {
     ) {
         ScheduleSlot slot = slotRepository.findById(slotId)
                 .orElseThrow(() -> new ResourceNotFoundException("Slot not found for id: " + slotId));
+
+        // Bookings must give the therapist time to decide before auto-reject fires.
+        Instant earliestAllowedStart = Instant.now().plus(THERAPIST_DECISION_WINDOW);
+        if (slot.getStartDatetime().isBefore(earliestAllowedStart)) {
+            throw new InvalidAppointmentStateException(
+                    "Slot starts too soon. Bookings must be made at least "
+                            + THERAPIST_DECISION_WINDOW.toHours()
+                            + " hours before the appointment start time.");
+        }
 
         int updatedRows = slotRepository.lockAndBookSlot(slotId);
         if (updatedRows == 0) {
@@ -210,6 +226,18 @@ public class BookingService {
                     "Appointment cannot be cancelled. Current status: " + appt.getStatus().name());
         }
 
+        // UPCOMING appointments can no longer be cancelled inside the 1h window.
+        // REQUESTED has its own deadline (the auto-reject sweep) so the cancel-window
+        // rule deliberately does not apply there.
+        if (appt.getStatus() == AppointmentStatus.UPCOMING) {
+            Instant cutoff = appt.getStartDatetime().minus(CANCEL_WINDOW);
+            if (Instant.now().isAfter(cutoff)) {
+                throw new InvalidAppointmentStateException(
+                        "Confirmed appointments cannot be cancelled within "
+                                + CANCEL_WINDOW.toHours() + " hour(s) of the start time.");
+            }
+        }
+
         appt.setStatus(AppointmentStatus.CANCELLED);
         appt.setCancellationReason(reason);
         appt.setCancelledAt(Instant.now());
@@ -235,6 +263,14 @@ public class BookingService {
                             + appt.getStatus().name());
         }
 
+        // Race-condition safety net: the auto-reject sweep runs every 60s, but a
+        // therapist may click Accept inside that window. Reject server-side too.
+        Instant deadline = appt.getStartDatetime().minus(THERAPIST_DECISION_WINDOW);
+        if (Instant.now().isAfter(deadline)) {
+            throw new InvalidAppointmentStateException(
+                    "Decision window has passed. The therapist can no longer accept this request.");
+        }
+
         appt.setStatus(AppointmentStatus.UPCOMING);
         appointmentRepository.save(appt);
         return toAppointmentDetail(appt);
@@ -250,6 +286,12 @@ public class BookingService {
             throw new InvalidAppointmentStateException(
                     "Only REQUESTED appointments can be rejected. Current status: "
                             + appt.getStatus().name());
+        }
+
+        Instant deadline = appt.getStartDatetime().minus(THERAPIST_DECISION_WINDOW);
+        if (Instant.now().isAfter(deadline)) {
+            throw new InvalidAppointmentStateException(
+                    "Decision window has passed. This request has already been auto-rejected.");
         }
 
         appt.setStatus(AppointmentStatus.CANCELLED);

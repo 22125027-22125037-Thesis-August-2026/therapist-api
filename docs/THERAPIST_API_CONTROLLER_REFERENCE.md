@@ -151,14 +151,32 @@ Booking lifecycle:
 - The therapist confirms with `POST /api/v1/bookings/{id}/confirm`
   (→ `UPCOMING`) or rejects with `POST /api/v1/bookings/{id}/reject`
   (→ `CANCELLED`, slot released).
-- The patient can cancel at any time prior to `COMPLETED` via
-  `POST /api/v1/bookings/{id}/cancel`.
+- Either party can cancel via `POST /api/v1/bookings/{id}/cancel` subject to
+  the cancel-window rule (see below).
+
+Booking time-window rules:
+
+- **Bookings**: `slotId.startDatetime` must be at least **2 hours** in the
+  future. Earlier slots are rejected with `409 Invalid Appointment State`
+  because they would be auto-rejected by the sweep below within 60 seconds.
+- **Confirm / reject**: the therapist can only act on a `REQUESTED` booking
+  until **2 hours** before `startDatetime`. Past that cutoff the endpoint
+  returns `409 Invalid Appointment State` and the sweep cancels the request.
+- **Auto-reject sweep**: a `@Scheduled` job runs every minute (configurable
+  via `booking.auto-reject.interval-ms`). It cancels every `REQUESTED`
+  appointment whose `startDatetime <= now + 2h`, sets
+  `cancellationReason = "Auto-rejected: therapist did not respond before the required decision window."`,
+  and releases the slot.
+- **Cancel**: while the appointment is `UPCOMING`, neither the patient nor
+  the therapist can cancel within **1 hour** of `startDatetime`. `REQUESTED`
+  appointments may be cancelled at any time (their own 2-hour deadline already
+  applies via the sweep).
 
 Possible errors:
 
 - `400` validation failure (`slotId` missing)
 - `404` slot not found
-- `409` slot already booked
+- `409` slot already booked **or** slot starts within the 2-hour booking window
 - `401` unauthenticated
 
 ### 2. Join Video Session
@@ -774,6 +792,9 @@ Possible errors: `403`, `404`, `401`.
 - Description: Marks the appointment `CANCELLED`, captures `cancellationReason`,
   and releases the slot so it can be re-booked. Allowed in `REQUESTED`,
   `UPCOMING`, or `IN_PROGRESS` states.
+- Window rule: `UPCOMING` appointments cannot be cancelled within **1 hour**
+  of `startDatetime`. `REQUESTED` appointments have no cancel window because
+  the 2-hour auto-reject deadline already applies.
 
 Request body:
 
@@ -799,6 +820,9 @@ Possible errors:
 - Authorization: Owning therapist or `ROLE_ADMIN`.
 - Description: Confirm transitions `REQUESTED → UPCOMING`. Reject transitions
   `REQUESTED → CANCELLED`, captures the optional `reason`, and releases the slot.
+- Window rule: only allowed while `startDatetime - now > 2 hours`. Past that
+  cutoff the auto-reject sweep cancels the request and these endpoints return
+  `409`.
 
 Reject body (optional):
 
@@ -1060,6 +1084,16 @@ REQUESTED ──confirm──▶ UPCOMING ──join──▶ IN_PROGRESS ──
   surfaces pending requests too.
 - Cancellations (patient or therapist) always release the originating slot so
   it can be re-booked.
+
+Time-window summary (all values configurable via `BookingService` constants):
+
+| Action | Window |
+| --- | --- |
+| Book a slot (`POST /bookings`) | slot must start `> 2h` from now |
+| Therapist confirm / reject | only while `start - now > 2h` |
+| Auto-reject sweep | every 60s; cancels any `REQUESTED` whose `start <= now + 2h` |
+| Cancel `UPCOMING` (patient or therapist) | only while `start - now > 1h` |
+| Cancel `REQUESTED` | any time before auto-reject fires |
 
 ## Quick cURL Examples
 
