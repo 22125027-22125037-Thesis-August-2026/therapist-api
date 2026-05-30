@@ -22,7 +22,7 @@ public class TherapistAssignmentController {
     }
 
     @GetMapping("/{profileId}/assigned-therapist")
-    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN') or @therapistAuthorization.canAccessPatient(authentication, #profileId)")
     public ResponseEntity<ActiveAssignedTherapistResponse> getActiveAssignedTherapist(
             @PathVariable UUID profileId
     ) {

@@ -6,7 +6,6 @@ import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.AppointmentRepository;
 import com.booking.therapist_api.repository.TherapistAssignmentRepository;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -157,12 +156,7 @@ public class TherapistAuthorization {
     }
 
     private static boolean hasRole(Authentication auth, String role) {
-        for (GrantedAuthority granted : auth.getAuthorities()) {
-            if (role.equals(granted.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
+        return SecurityRoles.hasRole(auth, role);
     }
 
     private static UUID parseUuidOrNull(String value) {

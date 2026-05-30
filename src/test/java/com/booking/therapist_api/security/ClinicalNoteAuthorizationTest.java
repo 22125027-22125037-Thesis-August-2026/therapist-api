@@ -49,6 +49,20 @@ class ClinicalNoteAuthorizationTest {
     }
 
     @Test
+    void canSubmit_allowsAssignedTherapistWithUnprefixedRole() {
+        UUID appointmentId = UUID.randomUUID();
+        UUID therapistId = UUID.randomUUID();
+
+        Appointment appointment = buildAppointment(appointmentId, therapistId, UUID.randomUUID());
+        when(appointmentRepository.findById(appointmentId)).thenReturn(Optional.of(appointment));
+
+        // Auth service issues the role claim as a bare name, without the ROLE_ prefix.
+        Authentication authentication = auth(therapistId, "THERAPIST");
+
+        assertTrue(clinicalNoteAuthorization.canSubmit(authentication, appointmentId));
+    }
+
+    @Test
     void canSubmit_deniesUnassignedTherapist() {
         UUID appointmentId = UUID.randomUUID();
         UUID therapistId = UUID.randomUUID();

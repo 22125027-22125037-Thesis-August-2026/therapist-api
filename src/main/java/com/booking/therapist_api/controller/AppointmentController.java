@@ -103,7 +103,7 @@ public class AppointmentController {
     }
 
     @GetMapping("/profiles/{profileId}/appointments/upcoming")
-    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN') or @therapistAuthorization.canAccessPatient(authentication, #profileId)")
     public ResponseEntity<UpcomingAppointmentResponseDto> getClosestUpcomingAppointment(
             @PathVariable UUID profileId
     ) {
@@ -111,7 +111,7 @@ public class AppointmentController {
     }
 
     @GetMapping("/profiles/{profileId}/appointments/history")
-    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN') or @therapistAuthorization.canAccessPatient(authentication, #profileId)")
     public ResponseEntity<List<AppointmentHistoryItemResponseDto>> getCompletedAndCancelledAppointments(
             @PathVariable UUID profileId
     ) {
@@ -119,7 +119,7 @@ public class AppointmentController {
     }
 
     @GetMapping("/profiles/{profileId}/appointments/unreviewed")
-    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("#profileId.toString() == authentication.name or hasRole('ROLE_ADMIN') or @therapistAuthorization.canAccessPatient(authentication, #profileId)")
     public ResponseEntity<List<AppointmentHistoryItemResponseDto>> getCompletedUnreviewedAppointments(
             @PathVariable UUID profileId
     ) {

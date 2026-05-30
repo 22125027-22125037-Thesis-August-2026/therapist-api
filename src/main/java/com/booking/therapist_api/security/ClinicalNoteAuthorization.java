@@ -101,12 +101,9 @@ public class ClinicalNoteAuthorization {
             return null;
         }
 
-        boolean isTherapist = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_THERAPIST".equals(authority.getAuthority()));
-        boolean isPatient = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_PATIENT".equals(authority.getAuthority()));
-        boolean isAdmin = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        boolean isTherapist = SecurityRoles.hasRole(authentication, "ROLE_THERAPIST");
+        boolean isPatient = SecurityRoles.hasRole(authentication, "ROLE_PATIENT");
+        boolean isAdmin = SecurityRoles.hasRole(authentication, "ROLE_ADMIN");
 
         return new AuthorizationContext(requesterId, isTherapist, isPatient, isAdmin);
     }
