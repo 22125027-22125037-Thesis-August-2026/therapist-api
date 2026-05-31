@@ -18,9 +18,11 @@ import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.exception.SlotAlreadyBookedException;
 import com.booking.therapist_api.repository.AppointmentRepository;
 import com.booking.therapist_api.repository.ScheduleSlotRepository;
+import com.booking.therapist_api.repository.spec.AppointmentSpecifications;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -207,11 +209,9 @@ public class BookingService {
             Instant to,
             Pageable pageable
     ) {
-        Collection<AppointmentStatus> normalizedStatuses =
-                (statuses == null || statuses.isEmpty()) ? null : statuses;
-        return appointmentRepository
-                .findTherapistAppointments(therapistId, normalizedStatuses, from, to, pageable)
-                .map(this::toTherapistItem);
+        Specification<Appointment> spec =
+                AppointmentSpecifications.ofTherapist(therapistId, statuses, from, to);
+        return appointmentRepository.findAll(spec, pageable).map(this::toTherapistItem);
     }
 
     @Transactional

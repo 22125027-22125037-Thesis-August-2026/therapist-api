@@ -15,6 +15,7 @@ import com.booking.therapist_api.repository.PatientTagRepository;
 import com.booking.therapist_api.repository.ProfileMatchingPreferenceRepository;
 import com.booking.therapist_api.repository.TherapistAssignmentRepository;
 import com.booking.therapist_api.repository.TherapistRepository;
+import com.booking.therapist_api.repository.spec.AppointmentSpecifications;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,17 +84,13 @@ public class TherapistPatientService {
 
     private Map<UUID, String> buildPatientNameIndex(UUID therapistId) {
         Map<UUID, String> nameByProfile = new HashMap<>();
-        appointmentRepository.findTherapistAppointments(
-                therapistId,
-                null,
-                null,
-                null,
-                org.springframework.data.domain.Pageable.unpaged()
-        ).forEach(appt -> {
-            if (appt.getPatientName() != null && !appt.getPatientName().isBlank()) {
-                nameByProfile.putIfAbsent(appt.getProfileId(), appt.getPatientName());
-            }
-        });
+        appointmentRepository
+                .findAll(AppointmentSpecifications.ofTherapist(therapistId, null, null, null))
+                .forEach(appt -> {
+                    if (appt.getPatientName() != null && !appt.getPatientName().isBlank()) {
+                        nameByProfile.putIfAbsent(appt.getProfileId(), appt.getPatientName());
+                    }
+                });
         return nameByProfile;
     }
 

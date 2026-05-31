@@ -2,9 +2,8 @@ package com.booking.therapist_api.repository;
 
 import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.enums.AppointmentStatus;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,7 +13,9 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
+public interface AppointmentRepository
+        extends JpaRepository<Appointment, UUID>,
+                JpaSpecificationExecutor<Appointment> {
 
 	@Query("SELECT COUNT(DISTINCT a.profileId) FROM Appointment a WHERE a.therapist.therapistId = :therapistId")
 	long countDistinctPatientsByTherapistId(@Param("therapistId") UUID therapistId);
@@ -41,23 +42,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 	List<Appointment> findByProfileIdAndStatusAndReviewIsNullOrderByStartDatetimeDesc(
 			UUID profileId,
 			AppointmentStatus status
-	);
-
-	@Query("""
-			SELECT a
-			FROM Appointment a
-			WHERE a.therapist.therapistId = :therapistId
-			  AND (:statuses IS NULL OR a.status IN :statuses)
-			  AND (:from IS NULL OR a.startDatetime >= :from)
-			  AND (:to IS NULL OR a.startDatetime < :to)
-			ORDER BY a.startDatetime DESC
-		""")
-	Page<Appointment> findTherapistAppointments(
-			@Param("therapistId") UUID therapistId,
-			@Param("statuses") Collection<AppointmentStatus> statuses,
-			@Param("from") Instant from,
-			@Param("to") Instant to,
-			Pageable pageable
 	);
 
 	long countByTherapist_TherapistIdAndStatus(UUID therapistId, AppointmentStatus status);
