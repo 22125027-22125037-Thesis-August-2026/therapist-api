@@ -33,6 +33,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/test/**").permitAll()
+                        // Internal-only surface; kept off the public network by the nginx
+                        // gateway, which 403s every /internal/ path for external callers.
+                        .requestMatchers("/internal/**").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll()
                 )

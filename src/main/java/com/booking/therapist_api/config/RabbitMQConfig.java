@@ -17,6 +17,7 @@ public class RabbitMQConfig {
     public static final String PROFILE_DEMOGRAPHICS_UPDATED_ROUTING_KEY = "profile.demographics.updated";
     public static final String TRACKING_MOOD_LOGGED_ROUTING_KEY = "tracking.mood.logged";
     public static final String AI_CRISIS_ALERTED_ROUTING_KEY = "ai.crisis.alerted";
+    public static final String ASSIGNMENT_CHANGED_ROUTING_KEY = "therapist.assignment.changed";
 
     @Bean
     public TopicExchange bookingExchange() {

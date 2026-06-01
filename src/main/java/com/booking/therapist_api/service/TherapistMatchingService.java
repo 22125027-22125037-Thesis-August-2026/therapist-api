@@ -3,6 +3,7 @@ package com.booking.therapist_api.service;
 import com.booking.therapist_api.config.RabbitMQConfig;
 import com.booking.therapist_api.dto.MatchingPreferenceRequest;
 import com.booking.therapist_api.dto.TherapistMatchResponse;
+import com.booking.therapist_api.event.AssignmentChangedEvent;
 import com.booking.therapist_api.event.CrisisAlertEvent;
 import com.booking.therapist_api.event.IntakeMoodLoggedEvent;
 import com.booking.therapist_api.event.ProfileDemographicsUpdatedEvent;
@@ -15,6 +16,7 @@ import com.booking.therapist_api.repository.ProfileMatchingPreferenceRepository;
 import com.booking.therapist_api.repository.TherapistAssignmentRepository;
 import com.booking.therapist_api.repository.TherapistRepository;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,17 +36,20 @@ public class TherapistMatchingService {
     private final TherapistRepository therapistRepository;
     private final TherapistAssignmentRepository assignmentRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TherapistMatchingService(
             ProfileMatchingPreferenceRepository preferenceRepository,
             TherapistRepository therapistRepository,
             TherapistAssignmentRepository assignmentRepository,
-            RabbitTemplate rabbitTemplate
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.preferenceRepository = preferenceRepository;
         this.therapistRepository = therapistRepository;
         this.assignmentRepository = assignmentRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -148,11 +153,23 @@ public class TherapistMatchingService {
 
         private void upsertActiveAssignment(UUID profileId, Therapist therapist) {
 
+        Instant now = Instant.now();
+
         assignmentRepository.findByProfileIdAndStatus(profileId, AssignmentStatus.ACTIVE)
                 .ifPresent(activeAssignment -> {
                     activeAssignment.setStatus(AssignmentStatus.INACTIVE);
-                    activeAssignment.setUnassignedAt(Instant.now());
+                    activeAssignment.setUnassignedAt(now);
                     assignmentRepository.save(activeAssignment);
+
+                    // Emit the deactivation after the transaction commits.
+                    eventPublisher.publishEvent(new AssignmentChangedEvent(
+                            UUID.randomUUID(),
+                            now,
+                            activeAssignment.getTherapist().getTherapistId(),
+                            activeAssignment.getProfileId(),
+                            AssignmentStatus.INACTIVE.name(),
+                            activeAssignment.getAssignedAt()
+                    ));
                 });
 
         TherapistAssignment assignment = new TherapistAssignment();
@@ -161,6 +178,16 @@ public class TherapistMatchingService {
         assignment.setStatus(AssignmentStatus.ACTIVE);
 
         assignmentRepository.save(assignment);
+
+        // Emit the new (re)assignment after the transaction commits.
+        eventPublisher.publishEvent(new AssignmentChangedEvent(
+                UUID.randomUUID(),
+                now,
+                therapist.getTherapistId(),
+                profileId,
+                AssignmentStatus.ACTIVE.name(),
+                now
+        ));
     }
 
     private String normalizeCommunicationStyle(String communicationStyle) {

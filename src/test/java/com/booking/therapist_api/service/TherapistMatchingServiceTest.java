@@ -7,6 +7,7 @@ import com.booking.therapist_api.entity.ProfileMatchingPreference;
 import com.booking.therapist_api.entity.Therapist;
 import com.booking.therapist_api.entity.TherapistAssignment;
 import com.booking.therapist_api.enums.AssignmentStatus;
+import com.booking.therapist_api.event.AssignmentChangedEvent;
 import com.booking.therapist_api.event.IntakeMoodLoggedEvent;
 import com.booking.therapist_api.event.ProfileDemographicsUpdatedEvent;
 import com.booking.therapist_api.repository.ProfileMatchingPreferenceRepository;
@@ -19,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -49,6 +51,9 @@ class TherapistMatchingServiceTest {
 
     @Mock
     private RabbitTemplate rabbitTemplate;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private TherapistMatchingService therapistMatchingService;
@@ -103,6 +108,65 @@ class TherapistMatchingServiceTest {
                 eq(RabbitMQConfig.TRACKING_MOOD_LOGGED_ROUTING_KEY),
                 any(IntakeMoodLoggedEvent.class)
         );
+    }
+
+    @Test
+    void assignTherapist_emitsSingleActiveEvent_onFreshAssignment() {
+        UUID profileId = UUID.randomUUID();
+        Therapist therapist = createTherapist("listener", true, new String[]{"anxiety"});
+
+        when(therapistRepository.findById(therapist.getTherapistId()))
+                .thenReturn(Optional.of(therapist));
+        when(assignmentRepository.findByProfileIdAndStatus(profileId, AssignmentStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+
+        therapistMatchingService.assignTherapist(profileId, therapist.getTherapistId());
+
+        ArgumentCaptor<AssignmentChangedEvent> eventCaptor =
+                ArgumentCaptor.forClass(AssignmentChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(eventCaptor.capture());
+
+        AssignmentChangedEvent event = eventCaptor.getValue();
+        assertEquals("ACTIVE", event.status());
+        assertEquals(profileId, event.patientProfileId());
+        assertEquals(therapist.getTherapistId(), event.therapistProfileId());
+        assertNotNull(event.eventId());
+        assertNotNull(event.occurredAt());
+    }
+
+    @Test
+    void assignTherapist_emitsInactiveThenActiveEvents_onReassignment() {
+        UUID profileId = UUID.randomUUID();
+        Therapist priorTherapist = createTherapist("listener", true, new String[]{"anxiety"});
+        Therapist newTherapist = createTherapist("listener", true, new String[]{"anxiety"});
+
+        TherapistAssignment priorAssignment = new TherapistAssignment();
+        priorAssignment.setProfileId(profileId);
+        priorAssignment.setTherapist(priorTherapist);
+        priorAssignment.setStatus(AssignmentStatus.ACTIVE);
+
+        when(therapistRepository.findById(newTherapist.getTherapistId()))
+                .thenReturn(Optional.of(newTherapist));
+        when(assignmentRepository.findByProfileIdAndStatus(profileId, AssignmentStatus.ACTIVE))
+                .thenReturn(Optional.of(priorAssignment));
+
+        therapistMatchingService.assignTherapist(profileId, newTherapist.getTherapistId());
+
+        ArgumentCaptor<AssignmentChangedEvent> eventCaptor =
+                ArgumentCaptor.forClass(AssignmentChangedEvent.class);
+        verify(eventPublisher, times(2)).publishEvent(eventCaptor.capture());
+
+        List<AssignmentChangedEvent> events = eventCaptor.getAllValues();
+
+        AssignmentChangedEvent closeEvent = events.get(0);
+        assertEquals("INACTIVE", closeEvent.status());
+        assertEquals(profileId, closeEvent.patientProfileId());
+        assertEquals(priorTherapist.getTherapistId(), closeEvent.therapistProfileId());
+
+        AssignmentChangedEvent openEvent = events.get(1);
+        assertEquals("ACTIVE", openEvent.status());
+        assertEquals(profileId, openEvent.patientProfileId());
+        assertEquals(newTherapist.getTherapistId(), openEvent.therapistProfileId());
     }
 
     @Test
