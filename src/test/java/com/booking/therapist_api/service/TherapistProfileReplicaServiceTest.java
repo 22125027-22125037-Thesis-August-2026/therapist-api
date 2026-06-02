@@ -39,6 +39,7 @@ class TherapistProfileReplicaServiceTest {
         therapist.setFullName("Old Name");
         therapist.setSpecialization("Old Spec");
         therapist.setAboutMe("Old bio");
+        therapist.setGender("MALE"); // therapist-api-owned; the snapshot's gender must NOT overwrite it
 
         when(therapistRepository.findById(therapistId)).thenReturn(Optional.of(therapist));
 
@@ -53,12 +54,12 @@ class TherapistProfileReplicaServiceTest {
         assertEquals("New Spec", therapist.getSpecialization());
         assertEquals("New bio", therapist.getAboutMe());
         assertEquals(12, therapist.getYearsExperience());
-        assertEquals("FEMALE", therapist.getGender());
         assertEquals("https://lic/new", therapist.getLicenseUrl());
         // watermark advanced
         assertEquals(occurredAt, therapist.getLastProfileEventAt());
 
-        // therapist-api-owned columns untouched
+        // therapist-api-owned columns untouched (gender is NOT mirrored from auth)
+        assertEquals("MALE", therapist.getGender());
         assertEquals(new BigDecimal("4.80"), therapist.getRatingAvg());
         assertEquals("empathetic", therapist.getCommunicationStyle());
         assertEquals(Boolean.TRUE, therapist.getIsLgbtqAllied());

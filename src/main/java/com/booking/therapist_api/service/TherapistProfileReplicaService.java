@@ -17,8 +17,8 @@ import java.util.Optional;
  * Keeps the {@code therapists} read replica in sync with auth-service's therapist profiles.
  *
  * <p>Mirrors ONLY the auth-owned columns ({@code full_name, specialization, about_me,
- * years_experience, gender, license_url}). Never touches therapist-api-owned data
- * ({@code rating_avg, communication_style, treated_challenges, is_lgbtq_allied}, slots, zoom).
+ * years_experience, license_url}). Never touches therapist-api-owned data
+ * ({@code rating_avg, communication_style, treated_challenges, is_lgbtq_allied, gender}, slots, zoom).
  */
 @Service
 public class TherapistProfileReplicaService {
@@ -116,10 +116,9 @@ public class TherapistProfileReplicaService {
             therapist.setYearsExperience(snapshot.yearsExperience());
             changed = true;
         }
-        if (!Objects.equals(therapist.getGender(), snapshot.gender())) {
-            therapist.setGender(snapshot.gender());
-            changed = true;
-        }
+        // gender is intentionally NOT mirrored: it isn't editable in auth-service
+        // (ProfileUpdateRequest has no gender) and auth stores it null for therapists, so mirroring
+        // would blank therapist-api's own seeded gender. It stays therapist-api-owned.
         if (!Objects.equals(therapist.getLicenseUrl(), snapshot.licenseUrl())) {
             therapist.setLicenseUrl(snapshot.licenseUrl());
             changed = true;
