@@ -2,6 +2,7 @@ package com.booking.therapist_api.repository;
 
 import com.booking.therapist_api.entity.Appointment;
 import com.booking.therapist_api.enums.AppointmentStatus;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -31,7 +32,8 @@ public interface AppointmentRepository
 	Optional<Appointment> findClosestUpcomingOrRecentInProgress(
 			@Param("profileId") UUID profileId,
 			@Param("statuses") Collection<AppointmentStatus> statuses,
-			@Param("recentCutoff") Instant recentCutoff
+			@Param("recentCutoff") Instant recentCutoff,
+			Limit limit
 	);
 
 	List<Appointment> findByProfileIdAndStatusInOrderByStartDatetimeDesc(

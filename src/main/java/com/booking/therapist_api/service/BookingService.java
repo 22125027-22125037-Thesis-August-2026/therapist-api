@@ -20,6 +20,7 @@ import com.booking.therapist_api.repository.AppointmentRepository;
 import com.booking.therapist_api.repository.ScheduleSlotRepository;
 import com.booking.therapist_api.repository.spec.AppointmentSpecifications;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -153,7 +154,8 @@ public class BookingService {
             .findClosestUpcomingOrRecentInProgress(
                 profileId,
                 List.of(AppointmentStatus.REQUESTED, AppointmentStatus.UPCOMING, AppointmentStatus.IN_PROGRESS),
-                recentCutoff
+                recentCutoff,
+                Limit.of(1)
             )
                 .orElseThrow(() -> new ResourceNotFoundException(
                 "No upcoming or ongoing appointment found for profile id: " + profileId));
