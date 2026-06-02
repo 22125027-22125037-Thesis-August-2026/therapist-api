@@ -14,6 +14,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -74,6 +75,11 @@ public class Therapist {
 
     @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY)
     private Set<TherapistAssignment> therapistAssignments = new HashSet<>();
+
+    // Watermark: occurredAt of the last applied auth-service profile event. Guards the
+    // read replica against out-of-order / replayed therapist.profile.updated events.
+    @Column(name = "last_profile_event_at")
+    private Instant lastProfileEventAt;
 
     public Therapist() {
     }
@@ -204,5 +210,13 @@ public class Therapist {
 
     public void setTherapistAssignments(Set<TherapistAssignment> therapistAssignments) {
         this.therapistAssignments = therapistAssignments;
+    }
+
+    public Instant getLastProfileEventAt() {
+        return lastProfileEventAt;
+    }
+
+    public void setLastProfileEventAt(Instant lastProfileEventAt) {
+        this.lastProfileEventAt = lastProfileEventAt;
     }
 }

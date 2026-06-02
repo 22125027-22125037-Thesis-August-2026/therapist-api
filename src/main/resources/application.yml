@@ -45,6 +45,21 @@ jwt:
   issuer: ${JWT_ISSUER:mhsa-auth}
   audience: ${JWT_AUDIENCE:mhsa-api}
 
+mhsa:
+  auth:
+    # auth-service's topic exchange for domain events. Must match auth-service's
+    # mhsa.auth.events.exchange so therapist-api's queue binds to the right exchange.
+    events:
+      exchange: ${AUTH_EVENTS_EXCHANGE:auth.events}
+    internal:
+      # Base URL of auth-service's internal API, reachable over the shared
+      # umatter-shared docker network. Used by the nightly profile reconciliation.
+      base-url: ${AUTH_INTERNAL_BASE_URL:http://auth-service:8081}
+      reconcile:
+        page-size: ${AUTH_RECONCILE_PAGE_SIZE:100}
+        cron: ${AUTH_RECONCILE_CRON:0 45 23 * * *}
+        zone: ${AUTH_RECONCILE_ZONE:Asia/Ho_Chi_Minh}
+
 video:
   provider: ${VIDEO_PROVIDER:zoom}
 
