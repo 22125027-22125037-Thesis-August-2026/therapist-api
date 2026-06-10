@@ -2,6 +2,7 @@ package com.booking.therapist_api.config;
 
 import com.booking.therapist_api.security.JwtAuthenticationFilter;
 import com.booking.therapist_api.security.RequestLoggingFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -38,6 +39,15 @@ public class SecurityConfig {
                         .requestMatchers("/internal/**").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll()
+                )
+                // Return 401 for authentication failures (missing/expired/invalid token)
+                // and reserve 403 for genuine authorization denials. Without this, Spring
+                // Security's default Http403ForbiddenEntryPoint returns 403 for both.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e)
+                                -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                        .accessDeniedHandler((req, res, e)
+                                -> res.sendError(HttpServletResponse.SC_FORBIDDEN))
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(requestLoggingFilter, JwtAuthenticationFilter.class);
