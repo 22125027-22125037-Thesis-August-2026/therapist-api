@@ -5,6 +5,7 @@ services:
   postgres:
     image: postgres:15-alpine
     mem_limit: 256m
+    restart: unless-stopped
     command: postgres -c shared_buffers=32MB -c max_connections=50
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-therapist_api}
