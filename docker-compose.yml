@@ -1,6 +1,11 @@
+# Memory ceilings target an 8 GiB host shared with the other three stacks. JAVA_TOOL_OPTIONS
+# uses MaxRAMPercentage rather than a literal -Xmx so the heap is derived from mem_limit (the
+# JVM reads the cgroup) and the two cannot drift apart.
 services:
   postgres:
     image: postgres:15-alpine
+    mem_limit: 256m
+    command: postgres -c shared_buffers=32MB -c max_connections=50
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-therapist_api}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -12,10 +17,13 @@ services:
 
   api:
     build: .
+    mem_limit: 640m
     ports:
       - "8085:8085"
     env_file:
       - .env
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k"
     depends_on:
       - postgres
     networks:
