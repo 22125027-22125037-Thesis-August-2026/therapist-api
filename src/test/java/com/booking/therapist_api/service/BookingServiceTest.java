@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Limit;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -71,7 +72,8 @@ class BookingServiceTest {
         when(appointmentRepository.findClosestUpcomingOrRecentInProgress(
                 eq(profileId),
                 any(Collection.class),
-                any(Instant.class)
+                any(Instant.class),
+                any(Limit.class)
         )).thenReturn(Optional.of(appointment));
 
         UpcomingAppointmentResponseDto response = bookingService.getClosestUpcomingAppointment(profileId);
@@ -92,7 +94,8 @@ class BookingServiceTest {
         when(appointmentRepository.findClosestUpcomingOrRecentInProgress(
                 eq(profileId),
                 any(Collection.class),
-                any(Instant.class)
+                any(Instant.class),
+                any(Limit.class)
         )).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -122,7 +125,7 @@ class BookingServiceTest {
         completedAppointment.setTherapist(therapist);
         completedAppointment.setSlot(completedSlot);
         completedAppointment.setMode(AppointmentMode.VIDEO);
-        completedAppointment.setStatus(AppointmentStatus.COMPLETED);
+        completedAppointment.setStatus(AppointmentStatus.OVERALL_COMPLETE);
         completedAppointment.setStartDatetime(Instant.parse("2026-04-01T10:00:00Z"));
 
         ScheduleSlot cancelledSlot = new ScheduleSlot();
@@ -140,7 +143,12 @@ class BookingServiceTest {
 
         when(appointmentRepository.findByProfileIdAndStatusInOrderByStartDatetimeDesc(
             eq(profileId),
-            eq(List.of(AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED))
+            eq(List.of(
+                AppointmentStatus.PATIENT_COMPLETE,
+                AppointmentStatus.PROFESSIONAL_COMPLETE,
+                AppointmentStatus.OVERALL_COMPLETE,
+                AppointmentStatus.CANCELLED
+            ))
         )).thenReturn(List.of(completedAppointment, cancelledAppointment));
 
         List<AppointmentHistoryItemResponseDto> response =
@@ -157,7 +165,7 @@ class BookingServiceTest {
         assertEquals("Canada", firstItem.location());
         assertEquals(completedSlotId, firstItem.slotId());
         assertEquals("VIDEO", firstItem.mode());
-        assertEquals("COMPLETED", firstItem.status());
+        assertEquals("OVERALL_COMPLETE", firstItem.status());
         assertEquals(Instant.parse("2026-04-01T10:00:00Z"), firstItem.startDatetime());
 
         AppointmentHistoryItemResponseDto secondItem = response.get(1);
@@ -171,7 +179,12 @@ class BookingServiceTest {
         UUID profileId = UUID.randomUUID();
         when(appointmentRepository.findByProfileIdAndStatusInOrderByStartDatetimeDesc(
             eq(profileId),
-            eq(List.of(AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED))
+            eq(List.of(
+                AppointmentStatus.PATIENT_COMPLETE,
+                AppointmentStatus.PROFESSIONAL_COMPLETE,
+                AppointmentStatus.OVERALL_COMPLETE,
+                AppointmentStatus.CANCELLED
+            ))
         )).thenReturn(List.of());
 
         List<AppointmentHistoryItemResponseDto> response =

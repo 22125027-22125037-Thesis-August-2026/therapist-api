@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -61,7 +62,13 @@ public class TherapistDashboardService {
 
         int completedThisMonth = Math.toIntExact(
                 appointmentRepository.countCompletedByTherapistInRange(
-                        therapistId, AppointmentStatus.COMPLETED, monthStart, nextMonthStart));
+                        therapistId,
+                        List.of(
+                                AppointmentStatus.PATIENT_COMPLETE,
+                                AppointmentStatus.PROFESSIONAL_COMPLETE,
+                                AppointmentStatus.OVERALL_COMPLETE
+                        ),
+                        monthStart, nextMonthStart));
 
         int pendingBookingCount = Math.toIntExact(
                 appointmentRepository.countByTherapist_TherapistIdAndStatus(

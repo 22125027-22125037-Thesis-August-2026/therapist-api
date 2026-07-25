@@ -175,7 +175,12 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<AppointmentHistoryItemResponseDto> getCompletedAndCancelledAppointments(UUID profileId) {
-        List<AppointmentStatus> historyStatuses = List.of(AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED);
+        List<AppointmentStatus> historyStatuses = List.of(
+                AppointmentStatus.PATIENT_COMPLETE,
+                AppointmentStatus.PROFESSIONAL_COMPLETE,
+                AppointmentStatus.OVERALL_COMPLETE,
+                AppointmentStatus.CANCELLED
+        );
         return appointmentRepository
                 .findByProfileIdAndStatusInOrderByStartDatetimeDesc(profileId, historyStatuses)
                 .stream()
@@ -185,10 +190,13 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<AppointmentHistoryItemResponseDto> getCompletedUnreviewedAppointments(UUID profileId) {
+        // PROFESSIONAL_COMPLETE is exactly "therapist finalized a note, patient
+        // hasn't reviewed yet" -- PATIENT_COMPLETE / OVERALL_COMPLETE always have
+        // a review already, so the review-IS-NULL filter would exclude them anyway.
         return appointmentRepository
             .findByProfileIdAndStatusAndReviewIsNullOrderByStartDatetimeDesc(
                 profileId,
-                AppointmentStatus.COMPLETED
+                AppointmentStatus.PROFESSIONAL_COMPLETE
             )
             .stream()
             .map(this::toHistoryItem)
@@ -223,7 +231,7 @@ public class BookingService {
                         "Appointment not found for id: " + appointmentId));
 
         if (appt.getStatus() == AppointmentStatus.CANCELLED
-                || appt.getStatus() == AppointmentStatus.COMPLETED) {
+                || appt.getStatus().isCompletionVariant()) {
             throw new InvalidAppointmentStateException(
                     "Appointment cannot be cancelled. Current status: " + appt.getStatus().name());
         }

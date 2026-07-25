@@ -61,14 +61,17 @@ public class ReviewService {
                     "Review can only be submitted at least 1 minute after the appointment start time.");
         }
 
-                if (appointment.getStatus() == AppointmentStatus.IN_PROGRESS) {
-                        appointment.setStatus(AppointmentStatus.COMPLETED);
-                        appointmentRepository.save(appointment);
-                }
-
         if (reviewRepository.existsByAppointment_Id(appointment.getId())) {
             throw new ReviewAlreadyExistsException(
                     "Review already exists for appointment id: " + appointment.getId());
+        }
+
+        if (appointment.getStatus() == AppointmentStatus.IN_PROGRESS) {
+            appointment.setStatus(AppointmentStatus.PATIENT_COMPLETE);
+            appointmentRepository.save(appointment);
+        } else if (appointment.getStatus() == AppointmentStatus.PROFESSIONAL_COMPLETE) {
+            appointment.setStatus(AppointmentStatus.OVERALL_COMPLETE);
+            appointmentRepository.save(appointment);
         }
 
         Review review = new Review();

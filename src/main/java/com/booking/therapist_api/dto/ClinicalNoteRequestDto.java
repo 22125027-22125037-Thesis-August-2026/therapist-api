@@ -11,7 +11,7 @@ import java.util.UUID;
  *
  * status is optional. If omitted the note is treated as FINALIZED (back-compat with
  * the original single-step submit flow). DRAFT bypasses the IN_PROGRESS state guard
- * and does NOT flip the appointment to COMPLETED.
+ * and does NOT flip the appointment to PROFESSIONAL_COMPLETE / OVERALL_COMPLETE.
  *
  * diagnosis / recommendations are required for FINALIZED notes and optional for DRAFT.
  */

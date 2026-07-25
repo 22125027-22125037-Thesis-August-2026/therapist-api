@@ -50,7 +50,7 @@ class ReviewServiceIntegrationTest {
     @Test
     void submitReview_createsReview_andUpdatesTherapistAverage() {
         UUID patientId = UUID.randomUUID();
-        Appointment firstAppointment = createAppointment(patientId, AppointmentStatus.COMPLETED, entityManager);
+        Appointment firstAppointment = createAppointment(patientId, AppointmentStatus.IN_PROGRESS, entityManager);
 
         ReviewResponseDto firstResponse = reviewService.submitReview(
                 patientId,
@@ -65,7 +65,7 @@ class ReviewServiceIntegrationTest {
                 .orElseThrow();
         assertEquals(new BigDecimal("4.00"), therapistAfterFirstReview.getRatingAvg());
 
-        Appointment secondAppointment = createAppointment(patientId, AppointmentStatus.COMPLETED, therapistAfterFirstReview);
+        Appointment secondAppointment = createAppointment(patientId, AppointmentStatus.IN_PROGRESS, therapistAfterFirstReview);
         reviewService.submitReview(patientId, new ReviewRequestDto(secondAppointment.getId(), 5, "Excellent"));
 
         Therapist therapistAfterSecondReview = therapistRepository
@@ -75,7 +75,29 @@ class ReviewServiceIntegrationTest {
     }
 
     @Test
-    void submitReview_rejectsNonCompletedAppointment() {
+    void submitReview_fromInProgress_setsAppointmentPatientComplete() {
+        UUID patientId = UUID.randomUUID();
+        Appointment appointment = createAppointment(patientId, AppointmentStatus.IN_PROGRESS, entityManager);
+
+        reviewService.submitReview(patientId, new ReviewRequestDto(appointment.getId(), 5, "Great"));
+
+        Appointment reloaded = appointmentRepository.findById(appointment.getId()).orElseThrow();
+        assertEquals(AppointmentStatus.PATIENT_COMPLETE, reloaded.getStatus());
+    }
+
+    @Test
+    void submitReview_fromProfessionalComplete_setsAppointmentOverallComplete() {
+        UUID patientId = UUID.randomUUID();
+        Appointment appointment = createAppointment(patientId, AppointmentStatus.PROFESSIONAL_COMPLETE, entityManager);
+
+        reviewService.submitReview(patientId, new ReviewRequestDto(appointment.getId(), 5, "Great"));
+
+        Appointment reloaded = appointmentRepository.findById(appointment.getId()).orElseThrow();
+        assertEquals(AppointmentStatus.OVERALL_COMPLETE, reloaded.getStatus());
+    }
+
+    @Test
+    void submitReview_rejectsUpcomingAppointment() {
         UUID patientId = UUID.randomUUID();
         Appointment appointment = createAppointment(patientId, AppointmentStatus.UPCOMING, entityManager);
 
@@ -88,7 +110,7 @@ class ReviewServiceIntegrationTest {
     @Test
     void submitReview_rejectsDuplicateReview() {
         UUID patientId = UUID.randomUUID();
-        Appointment appointment = createAppointment(patientId, AppointmentStatus.COMPLETED, entityManager);
+        Appointment appointment = createAppointment(patientId, AppointmentStatus.IN_PROGRESS, entityManager);
 
         reviewService.submitReview(patientId, new ReviewRequestDto(appointment.getId(), 5, "Nice"));
 
@@ -107,10 +129,12 @@ class ReviewServiceIntegrationTest {
     }
 
     private Appointment createAppointment(UUID patientId, AppointmentStatus status, Therapist therapist) {
+        // Started an hour ago so the "review can only be submitted >= 60s after
+        // start" eligibility check in ReviewService passes.
         ScheduleSlot slot = new ScheduleSlot();
         slot.setTherapist(therapist);
-        slot.setStartDatetime(Instant.now().plusSeconds(3600));
-        slot.setEndDatetime(Instant.now().plusSeconds(5400));
+        slot.setStartDatetime(Instant.now().minusSeconds(3600));
+        slot.setEndDatetime(Instant.now().minusSeconds(1800));
         slot.setBooked(true);
         slot = entityManager.merge(slot);
 

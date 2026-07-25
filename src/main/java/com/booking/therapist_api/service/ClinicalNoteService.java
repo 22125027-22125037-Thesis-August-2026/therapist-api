@@ -10,6 +10,7 @@ import com.booking.therapist_api.entity.ClinicalNote;
 import com.booking.therapist_api.enums.AppointmentStatus;
 import com.booking.therapist_api.enums.ClinicalNoteStatus;
 import com.booking.therapist_api.exception.ClinicalNoteAlreadyExistsException;
+import com.booking.therapist_api.exception.ClinicalNoteNotAllowedException;
 import com.booking.therapist_api.exception.InvalidAppointmentStateException;
 import com.booking.therapist_api.exception.ResourceNotFoundException;
 import com.booking.therapist_api.repository.AppointmentRepository;
@@ -19,10 +20,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
 public class ClinicalNoteService {
+
+    /**
+     * Once the patient reviews first (appointment goes PATIENT_COMPLETE), the
+     * therapist still has this long after the review to finalize a clinical note
+     * before it locks for good.
+     */
+    public static final Duration NOTE_GRACE_WINDOW_AFTER_PATIENT_COMPLETE = Duration.ofHours(24);
 
     private final AppointmentRepository appointmentRepository;
     private final ClinicalNoteRepository clinicalNoteRepository;
@@ -47,18 +57,17 @@ public class ClinicalNoteService {
                     "Clinical note already exists for appointment id: " + appointment.getId());
         }
 
-        // FINALIZED requires the appointment to be IN_PROGRESS (preserve the
-        // original single-step submit semantics).
-        if (targetStatus == ClinicalNoteStatus.FINALIZED
-                && appointment.getStatus() != AppointmentStatus.IN_PROGRESS) {
-            throw new InvalidAppointmentStateException(
-                    "Clinical note can only be FINALIZED when appointment is IN_PROGRESS. Current status: "
-                            + appointment.getStatus().name());
+        // FINALIZED requires the appointment to be IN_PROGRESS, or PATIENT_COMPLETE
+        // within the post-review grace window (preserves the original single-step
+        // submit semantics for the common case, plus the split-completion path).
+        if (targetStatus == ClinicalNoteStatus.FINALIZED) {
+            ensureNoteFinalizable(appointment);
         }
 
-        // Drafts require an appointment that is still open (UPCOMING / IN_PROGRESS).
+        // Drafts require an appointment that hasn't already locked the therapist out.
         if (targetStatus == ClinicalNoteStatus.DRAFT
-                && (appointment.getStatus() == AppointmentStatus.COMPLETED
+                && (appointment.getStatus() == AppointmentStatus.PROFESSIONAL_COMPLETE
+                    || appointment.getStatus() == AppointmentStatus.OVERALL_COMPLETE
                     || appointment.getStatus() == AppointmentStatus.CANCELLED)) {
             throw new InvalidAppointmentStateException(
                     "Cannot create a DRAFT note for a "
@@ -73,7 +82,9 @@ public class ClinicalNoteService {
         ClinicalNote savedNote = clinicalNoteRepository.save(note);
 
         if (targetStatus == ClinicalNoteStatus.FINALIZED) {
-            appointment.setStatus(AppointmentStatus.COMPLETED);
+            appointment.setStatus(appointment.getStatus() == AppointmentStatus.PATIENT_COMPLETE
+                    ? AppointmentStatus.OVERALL_COMPLETE
+                    : AppointmentStatus.PROFESSIONAL_COMPLETE);
             appointmentRepository.save(appointment);
         }
 
@@ -137,17 +148,41 @@ public class ClinicalNoteService {
 
     private void finalizeInternal(ClinicalNote note) {
         Appointment appt = note.getAppointment();
-        if (appt.getStatus() != AppointmentStatus.IN_PROGRESS
-                && appt.getStatus() != AppointmentStatus.COMPLETED) {
-            throw new InvalidAppointmentStateException(
-                    "Clinical note can only be FINALIZED when appointment is IN_PROGRESS or COMPLETED. Current status: "
-                            + appt.getStatus().name());
-        }
+        ensureNoteFinalizable(appt);
         note.setStatus(ClinicalNoteStatus.FINALIZED);
         if (appt.getStatus() == AppointmentStatus.IN_PROGRESS) {
-            appt.setStatus(AppointmentStatus.COMPLETED);
+            appt.setStatus(AppointmentStatus.PROFESSIONAL_COMPLETE);
+            appointmentRepository.save(appt);
+        } else if (appt.getStatus() == AppointmentStatus.PATIENT_COMPLETE) {
+            appt.setStatus(AppointmentStatus.OVERALL_COMPLETE);
             appointmentRepository.save(appt);
         }
+    }
+
+    /**
+     * A note can be finalized while the appointment is IN_PROGRESS (the normal
+     * case), or while it is PATIENT_COMPLETE as long as we're still within
+     * {@link #NOTE_GRACE_WINDOW_AFTER_PATIENT_COMPLETE} of the patient's review.
+     * Once that window has passed, the therapist can no longer submit a note.
+     */
+    private void ensureNoteFinalizable(Appointment appt) {
+        if (appt.getStatus() == AppointmentStatus.IN_PROGRESS) {
+            return;
+        }
+        if (appt.getStatus() == AppointmentStatus.PATIENT_COMPLETE) {
+            Instant reviewedAt = appt.getReview().getCreatedAt();
+            Instant deadline = reviewedAt.plus(NOTE_GRACE_WINDOW_AFTER_PATIENT_COMPLETE);
+            if (Instant.now().isAfter(deadline)) {
+                throw new ClinicalNoteNotAllowedException(
+                        "The " + NOTE_GRACE_WINDOW_AFTER_PATIENT_COMPLETE.toHours()
+                                + "-hour window to submit a clinical note after the patient's review has passed.");
+            }
+            return;
+        }
+        throw new InvalidAppointmentStateException(
+                "Clinical note can only be FINALIZED when appointment is IN_PROGRESS, or PATIENT_COMPLETE within "
+                        + NOTE_GRACE_WINDOW_AFTER_PATIENT_COMPLETE.toHours()
+                        + "h of the patient's review. Current status: " + appt.getStatus().name());
     }
 
     @Transactional(readOnly = true)

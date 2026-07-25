@@ -52,13 +52,13 @@ public interface AppointmentRepository
 			SELECT COUNT(a)
 			FROM Appointment a
 			WHERE a.therapist.therapistId = :therapistId
-			  AND a.status = :status
+			  AND a.status IN :statuses
 			  AND a.startDatetime >= :from
 			  AND a.startDatetime < :to
 		""")
 	long countCompletedByTherapistInRange(
 			@Param("therapistId") UUID therapistId,
-			@Param("status") AppointmentStatus status,
+			@Param("statuses") Collection<AppointmentStatus> statuses,
 			@Param("from") Instant from,
 			@Param("to") Instant to
 	);
