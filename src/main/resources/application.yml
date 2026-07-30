@@ -61,7 +61,11 @@ mhsa:
         zone: ${AUTH_RECONCILE_ZONE:Asia/Ho_Chi_Minh}
 
 video:
-  provider: ${VIDEO_PROVIDER:zoom}
+  # Jitsi is the live provider and is now also the default, so an unset
+  # VIDEO_PROVIDER can no longer silently select the dormant Zoom path
+  # (which 404s for any therapist without a zoom credential row).
+  # Zoom is explicit opt-in: set VIDEO_PROVIDER=zoom.
+  provider: ${VIDEO_PROVIDER:jitsi}
 
 zoom:
   app-key: ${ZOOM_APP_KEY:}

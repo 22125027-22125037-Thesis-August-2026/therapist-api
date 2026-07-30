@@ -59,7 +59,16 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-	testRuntimeOnly 'com.h2database:h2'
+	// Integration tests run against a real PostgreSQL container rather than H2.
+	// H2's MODE=PostgreSQL cannot create the varchar[] columns this schema uses
+	// (therapists.treated_challenges, patient_tags.tags, profiles_preferences.reasons);
+	// ddl-auto logged each failed CREATE TABLE as a WARN and continued, so unrelated
+	// tables went missing in an order that varied run to run.
+	// Spring Boot 4.0's BOM does not manage org.testcontainers versions, so import theirs.
+	testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

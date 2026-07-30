@@ -1,17 +1,16 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:therapist_api_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+  # No datasource block: the PostgreSQL Testcontainer in
+  # AbstractPostgresIntegrationTest supplies url/username/password via @ServiceConnection.
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # Flyway owns the schema here, exactly as in production, so Hibernate only checks
+      # that the entity mappings agree with it.
+      ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
-    enabled: false
+    enabled: true
   rabbitmq:
     host: localhost
     port: 5672

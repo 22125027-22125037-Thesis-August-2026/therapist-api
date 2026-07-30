@@ -9,14 +9,13 @@ import com.booking.therapist_api.enums.AppointmentMode;
 import com.booking.therapist_api.enums.AppointmentStatus;
 import com.booking.therapist_api.exception.InvalidAppointmentStateException;
 import com.booking.therapist_api.exception.ReviewAlreadyExistsException;
+import com.booking.therapist_api.AbstractPostgresIntegrationTest;
 import com.booking.therapist_api.repository.AppointmentRepository;
 import com.booking.therapist_api.repository.ReviewRepository;
 import com.booking.therapist_api.repository.TherapistRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -27,10 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-class ReviewServiceIntegrationTest {
+class ReviewServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private ReviewService reviewService;

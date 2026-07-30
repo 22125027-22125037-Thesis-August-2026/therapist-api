@@ -3,14 +3,13 @@ package com.booking.therapist_api.service;
 import com.booking.therapist_api.entity.ScheduleSlot;
 import com.booking.therapist_api.entity.Therapist;
 import com.booking.therapist_api.entity.WeeklyTemplate;
+import com.booking.therapist_api.AbstractPostgresIntegrationTest;
 import com.booking.therapist_api.repository.ScheduleSlotRepository;
 import com.booking.therapist_api.repository.WeeklyTemplateRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
@@ -25,10 +24,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-class ScheduleGenerationServiceIntegrationTest {
+class ScheduleGenerationServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     private static final ZoneId TEMPLATE_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 

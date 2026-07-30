@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 
 @Service
-@ConditionalOnProperty(name = "video.provider", havingValue = "zoom", matchIfMissing = true)
+@ConditionalOnProperty(name = "video.provider", havingValue = "zoom")
 public class ZoomVideoServiceImpl implements VideoConsultationProvider {
 
     @Value("${zoom.app-key}")

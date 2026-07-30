@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty(name = "video.provider", havingValue = "jitsi")
+@ConditionalOnProperty(name = "video.provider", havingValue = "jitsi", matchIfMissing = true)
 public class JitsiVideoServiceImpl implements VideoConsultationProvider {
 
     @Override
